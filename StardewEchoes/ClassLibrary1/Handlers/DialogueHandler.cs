@@ -18,10 +18,7 @@ namespace StardewEchoes.Handlers
     private readonly IModHelper Helper;
     private readonly HttpClient httpClient;
     private readonly Dictionary<string, List<ConversationEntry>> conversationHistories;
-    private readonly Func<string, int> getFriendshipHearts;
-    private readonly Func<string> getCurrentWeather;
-    private readonly Func<string> getGameLanguage;
-    private readonly Func<string, string> getLocalizedText;
+    private readonly GameContextHandler gameContextHandler;
 
     private const string API_URL = "http://127.0.0.1:8000/generate_dialogue";
 
@@ -30,19 +27,13 @@ namespace StardewEchoes.Handlers
         IModHelper helper,
         HttpClient httpClient,
         Dictionary<string, List<ConversationEntry>> conversationHistories,
-        Func<string, int> getFriendshipHearts,
-        Func<string> getCurrentWeather,
-        Func<string> getGameLanguage,
-        Func<string, string> getLocalizedText)
+        GameContextHandler gameContextHandler)
     {
       this.Monitor = monitor;
       this.Helper = helper;
       this.httpClient = httpClient;
       this.conversationHistories = conversationHistories;
-      this.getFriendshipHearts = getFriendshipHearts;
-      this.getCurrentWeather = getCurrentWeather;
-      this.getGameLanguage = getGameLanguage;
-      this.getLocalizedText = getLocalizedText;
+      this.gameContextHandler = gameContextHandler;
     }
 
     public async void AbrirDialogoConOpciones(NPC npc, string? playerResponse = null)
@@ -57,7 +48,7 @@ namespace StardewEchoes.Handlers
         {
           opciones.Add(new Response($"option_{i}", dialogueResponse.response_options[i]));
         }
-        opciones.Add(new Response("salir", getLocalizedText("Exit")));
+        opciones.Add(new Response("salir", gameContextHandler.GetLocalizedText("Exit")));
 
         Game1.currentLocation.createQuestionDialogue(
             dialogueResponse.npc_message,
@@ -92,12 +83,12 @@ namespace StardewEchoes.Handlers
 
         Response[] opciones = new[]
         {
-                    new Response("retry", getLocalizedText("Try again")),
-                    new Response("salir", getLocalizedText("Exit"))
+                    new Response("retry", gameContextHandler.GetLocalizedText("Try again")),
+                    new Response("salir", gameContextHandler.GetLocalizedText("Exit"))
                 };
 
         Game1.currentLocation.createQuestionDialogue(
-            getLocalizedText("Hello, how are you? (Connection error)"),
+            gameContextHandler.GetLocalizedText("Hello, how are you? (Connection error)"),
             opciones,
             (farmer, key) =>
             {
@@ -110,11 +101,6 @@ namespace StardewEchoes.Handlers
                   Helper.Events.GameLoop.UpdateTicked -= RetryDialogue;
                   AbrirDialogoConOpciones(npc);
                 }
-              }
-              else if (key == "salir")
-              {
-                ClearConversationHistory(npc.Name);
-                Monitor.Log($"Conversación con {npc.Name} terminada. Historial limpiado.", LogLevel.Debug);
               }
             }
         );
@@ -129,15 +115,15 @@ namespace StardewEchoes.Handlers
         npc_name = npc.Name,
         npc_location = npc.currentLocation?.Name ?? "Unknown",
         player_name = Game1.player.Name,
-        friendship_hearts = getFriendshipHearts(npc.Name),
+        friendship_hearts = gameContextHandler.GetFriendshipHearts(npc.Name),
         season = Game1.currentSeason,
         day_of_month = Game1.dayOfMonth,
         day_of_week = (int)Game1.Date.DayOfWeek,
         time_of_day = Game1.timeOfDay,
         year = Game1.year,
-        weather = getCurrentWeather(),
+        weather = gameContextHandler.GetCurrentWeather(),
         player_location = Game1.currentLocation?.Name ?? "Unknown",
-        language = getGameLanguage(),
+        language = gameContextHandler.GetGameLanguage(),
         conversation_history = history,
         player_response = playerResponse
       };
@@ -158,11 +144,11 @@ namespace StardewEchoes.Handlers
         var dialogueResponse = JsonSerializer.Deserialize<DialogueResponse>(responseText);
         return dialogueResponse ?? new DialogueResponse
         {
-          npc_message = getLocalizedText("Hello, how are you?"),
+          npc_message = gameContextHandler.GetLocalizedText("Hello, how are you?"),
           response_options = new List<string> {
-                        getLocalizedText("Friendly response"),
-                        getLocalizedText("Neutral response"),
-                        getLocalizedText("Provocative response")
+                        gameContextHandler.GetLocalizedText("Friendly response"),
+                        gameContextHandler.GetLocalizedText("Neutral response"),
+                        gameContextHandler.GetLocalizedText("Provocative response")
                     }
         };
       }
@@ -171,11 +157,11 @@ namespace StardewEchoes.Handlers
         Monitor.Log($"Error en la API: {response.StatusCode}", LogLevel.Error);
         return new DialogueResponse
         {
-          npc_message = getLocalizedText("Hello, how are you? (Connection error)"),
+          npc_message = gameContextHandler.GetLocalizedText("Hello, how are you? (Connection error)"),
           response_options = new List<string> {
-                        getLocalizedText("Friendly response"),
-                        getLocalizedText("Neutral response"),
-                        getLocalizedText("Provocative response")
+                        gameContextHandler.GetLocalizedText("Friendly response"),
+                        gameContextHandler.GetLocalizedText("Neutral response"),
+                        gameContextHandler.GetLocalizedText("Provocative response")
                     }
         };
       }
