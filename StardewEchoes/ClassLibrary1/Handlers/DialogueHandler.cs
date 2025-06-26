@@ -1,0 +1,219 @@
+using StardewModdingAPI;
+using StardewModdingAPI.Events;
+using StardewValley;
+using StardewValley.Menus;
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using StardewEchoes.Models;
+
+namespace StardewEchoes.Handlers
+{
+  public class DialogueHandler
+  {
+    private readonly IMonitor Monitor;
+    private readonly IModHelper Helper;
+    private readonly HttpClient httpClient;
+    private readonly Dictionary<string, List<ConversationEntry>> conversationHistories;
+    private readonly Func<string, int> getFriendshipHearts;
+    private readonly Func<string> getCurrentWeather;
+    private readonly Func<string> getGameLanguage;
+    private readonly Func<string, string> getLocalizedText;
+
+    private const string API_URL = "http://127.0.0.1:8000/generate_dialogue";
+
+    public DialogueHandler(
+        IMonitor monitor,
+        IModHelper helper,
+        HttpClient httpClient,
+        Dictionary<string, List<ConversationEntry>> conversationHistories,
+        Func<string, int> getFriendshipHearts,
+        Func<string> getCurrentWeather,
+        Func<string> getGameLanguage,
+        Func<string, string> getLocalizedText)
+    {
+      this.Monitor = monitor;
+      this.Helper = helper;
+      this.httpClient = httpClient;
+      this.conversationHistories = conversationHistories;
+      this.getFriendshipHearts = getFriendshipHearts;
+      this.getCurrentWeather = getCurrentWeather;
+      this.getGameLanguage = getGameLanguage;
+      this.getLocalizedText = getLocalizedText;
+    }
+
+    public async void AbrirDialogoConOpciones(NPC npc, string? playerResponse = null)
+    {
+      try
+      {
+        var dialogueResponse = await GetDialogueFromAPI(npc, playerResponse);
+        AddToConversationHistory(npc.Name, "npc", dialogueResponse.npc_message);
+
+        var opciones = new List<Response>();
+        for (int i = 0; i < dialogueResponse.response_options.Count && i < 3; i++)
+        {
+          opciones.Add(new Response($"option_{i}", dialogueResponse.response_options[i]));
+        }
+        opciones.Add(new Response("salir", getLocalizedText("Exit")));
+
+        Game1.currentLocation.createQuestionDialogue(
+            dialogueResponse.npc_message,
+            opciones.ToArray(),
+            (farmer, key) =>
+            {
+              if (key.StartsWith("option_"))
+              {
+                int optionIndex = int.Parse(key.Substring("option_".Length));
+                string selectedResponse = dialogueResponse.response_options[optionIndex];
+                AddToConversationHistory(npc.Name, "player", selectedResponse);
+
+                Helper.Events.GameLoop.UpdateTicked += ContinueConversation;
+
+                void ContinueConversation(object? s, UpdateTickedEventArgs e)
+                {
+                  Helper.Events.GameLoop.UpdateTicked -= ContinueConversation;
+                  AbrirDialogoConOpciones(npc, selectedResponse);
+                }
+              }
+              else if (key == "salir")
+              {
+                ClearConversationHistory(npc.Name);
+                Monitor.Log($"Conversación con {npc.Name} terminada. Historial limpiado.", LogLevel.Debug);
+              }
+            }
+        );
+      }
+      catch (Exception ex)
+      {
+        Monitor.Log($"Error al obtener diálogo: {ex.Message}", LogLevel.Error);
+
+        Response[] opciones = new[]
+        {
+                    new Response("retry", getLocalizedText("Try again")),
+                    new Response("salir", getLocalizedText("Exit"))
+                };
+
+        Game1.currentLocation.createQuestionDialogue(
+            getLocalizedText("Hello, how are you? (Connection error)"),
+            opciones,
+            (farmer, key) =>
+            {
+              if (key == "retry")
+              {
+                Helper.Events.GameLoop.UpdateTicked += RetryDialogue;
+
+                void RetryDialogue(object? s, UpdateTickedEventArgs e)
+                {
+                  Helper.Events.GameLoop.UpdateTicked -= RetryDialogue;
+                  AbrirDialogoConOpciones(npc);
+                }
+              }
+              else if (key == "salir")
+              {
+                ClearConversationHistory(npc.Name);
+                Monitor.Log($"Conversación con {npc.Name} terminada. Historial limpiado.", LogLevel.Debug);
+              }
+            }
+        );
+      }
+    }
+
+    private async Task<DialogueResponse> GetDialogueFromAPI(NPC npc, string? playerResponse = null)
+    {
+      var history = GetConversationHistory(npc.Name);
+      var request = new DialogueRequest
+      {
+        npc_name = npc.Name,
+        npc_location = npc.currentLocation?.Name ?? "Unknown",
+        player_name = Game1.player.Name,
+        friendship_hearts = getFriendshipHearts(npc.Name),
+        season = Game1.currentSeason,
+        day_of_month = Game1.dayOfMonth,
+        day_of_week = (int)Game1.Date.DayOfWeek,
+        time_of_day = Game1.timeOfDay,
+        year = Game1.year,
+        weather = getCurrentWeather(),
+        player_location = Game1.currentLocation?.Name ?? "Unknown",
+        language = getGameLanguage(),
+        conversation_history = history,
+        player_response = playerResponse
+      };
+
+      string jsonContent = JsonSerializer.Serialize(request);
+      var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+      Monitor.Log($"Enviando petición a la API para {npc.Name}", LogLevel.Debug);
+      Monitor.Log($"Datos del contexto: {jsonContent}", LogLevel.Debug);
+
+      var response = await httpClient.PostAsync(API_URL, content);
+
+      if (response.IsSuccessStatusCode)
+      {
+        string responseText = await response.Content.ReadAsStringAsync();
+        Monitor.Log($"Respuesta recibida: {responseText}", LogLevel.Debug);
+
+        var dialogueResponse = JsonSerializer.Deserialize<DialogueResponse>(responseText);
+        return dialogueResponse ?? new DialogueResponse
+        {
+          npc_message = getLocalizedText("Hello, how are you?"),
+          response_options = new List<string> {
+                        getLocalizedText("Friendly response"),
+                        getLocalizedText("Neutral response"),
+                        getLocalizedText("Provocative response")
+                    }
+        };
+      }
+      else
+      {
+        Monitor.Log($"Error en la API: {response.StatusCode}", LogLevel.Error);
+        return new DialogueResponse
+        {
+          npc_message = getLocalizedText("Hello, how are you? (Connection error)"),
+          response_options = new List<string> {
+                        getLocalizedText("Friendly response"),
+                        getLocalizedText("Neutral response"),
+                        getLocalizedText("Provocative response")
+                    }
+        };
+      }
+    }
+
+    private void AddToConversationHistory(string npcName, string speaker, string message)
+    {
+      if (!conversationHistories.ContainsKey(npcName))
+      {
+        conversationHistories[npcName] = new List<ConversationEntry>();
+      }
+
+      conversationHistories[npcName].Add(new ConversationEntry
+      {
+        speaker = speaker,
+        message = message
+      });
+
+      if (conversationHistories[npcName].Count > 10)
+      {
+        conversationHistories[npcName].RemoveAt(0);
+      }
+    }
+
+    private List<ConversationEntry> GetConversationHistory(string npcName)
+    {
+      return conversationHistories.ContainsKey(npcName)
+          ? conversationHistories[npcName]
+          : new List<ConversationEntry>();
+    }
+
+    private void ClearConversationHistory(string npcName)
+    {
+      if (conversationHistories.ContainsKey(npcName))
+      {
+        conversationHistories[npcName].Clear();
+        conversationHistories.Remove(npcName);
+      }
+    }
+  }
+}
