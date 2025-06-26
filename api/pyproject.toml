@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "stardew-echoes-api"
+version = "0.1.0"
+description = "API for StardewEchoes mod"
+authors = ["Your Name <you@example.com>"]
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.104.1"
+uvicorn = "^0.24.0"
+pydantic = "^2.4.2"
+pydantic-settings = "^2.0.3"
+prisma = "^0.10.0"
+openai = "^0.28.1"
+python-dotenv = "^1.0.0"
+google-genai = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+prisma = "^0.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

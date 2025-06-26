@@ -1,0 +1,12 @@
+---
+description: When the agent need to known how the server works
+globs: 
+alwaysApply: false
+---
+# Server-Side (Python FastAPI Backend)
+
+The backend is a Python server built with FastAPI. It handles requests from the mod, interacts with the LLM, manages conversation history in a database, and provides a web interface for user authentication and API token management.
+
+Refer to these documents for implementation details:
+- **FastAPI Server and Database Setup:** @.github/prompts/backend_fastapi_server.prompt.md
+- **Web UI and Authentication Logic:** @.github/prompts/backend_web_auth.prompt.md

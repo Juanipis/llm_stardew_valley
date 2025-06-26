@@ -1,0 +1,11 @@
+---
+description: When we need to know about  the personalities work
+globs: 
+alwaysApply: false
+---
+# Character Context
+
+To ensure dialogues are in-character, you must adhere to the established personalities of the NPCs.
+
+Refer to this document for details on character personalities:
+@.github/prompts/character_personalities.prompt.md

@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Vision & Architecture
+
+This file provides a high-level overview of the "StardewEchoes" project.
+
+@.github/prompts/project_overview.prompt.md
+@.github/prompts/technical_stack.prompt.md

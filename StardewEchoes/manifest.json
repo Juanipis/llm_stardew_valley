@@ -4,7 +4,11 @@
   "Version": "1.0.0",
   "Description": "Un mod para Stardew Valley que usa un LLM para generar diálogos dinámicos.",
   "UniqueID": "juanipis.StardewEchoes",
+  "MinimumApiVersion": "4.0.0",
   "UpdateKeys": [],
   "ContentPackFor": null,
-  "Dependencies": []
+  "Dependencies": [],
+  "EntryDll": "StardewEchoes.dll",
+  "MinimumGameVersion": "1.5.6",
+  "AllowNetworkAccess": true
 }

@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int      @id @default(autoincrement())
+  email           String   @unique
+  hashed_password String
+  api_token       String?  @unique
+  worlds          World[]
+}
+
+model World {
+  id           Int           @id @default(autoincrement())
+  farm_name    String
+  user         User          @relation(fields: [userId], references: [id])
+  userId       Int
+  interactions Interaction[]
+
+  @@unique([userId, farm_name])
+}
+
+model Interaction {
+  id                 Int      @id @default(autoincrement())
+  npcName            String
+  raw_context        String
+  generated_dialogue String
+  world              World    @relation(fields: [worldId], references: [id])
+  worldId            Int
+  createdAt          DateTime @default(now())
+}

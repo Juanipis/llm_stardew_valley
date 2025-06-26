@@ -1,0 +1,13 @@
+---
+description: When we the agent need to modify the code of the mod
+globs: 
+alwaysApply: false
+---
+# Client-Side (C# Stardew Valley Mod)
+
+The client is a C# mod using SMAPI. It is responsible for intercepting player-NPC interactions, gathering game context, calling the backend API, and displaying the generated dialogue in-game.
+
+Refer to these documents for implementation details:
+- **SMAPI Modding Fundamentals:** @.github/prompts/smapi_modding_fundamentals.prompt.md
+- **Dynamic Dialogue Logic:** @.github/prompts/client_dialogue_logic.prompt.md
+- **API Communication and Configuration:** @.github/prompts/client_server_communication.prompt.md

@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StardewEchoes", "StardewEchoes\StardewEchoes.csproj", "{0CF62C80-4DA8-E844-507F-1211057A346E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0CF62C80-4DA8-E844-507F-1211057A346E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0CF62C80-4DA8-E844-507F-1211057A346E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0CF62C80-4DA8-E844-507F-1211057A346E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0CF62C80-4DA8-E844-507F-1211057A346E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FEA65DB9-55C8-4EFB-A9EE-DD028F2E1575}
+	EndGlobalSection
+EndGlobal
