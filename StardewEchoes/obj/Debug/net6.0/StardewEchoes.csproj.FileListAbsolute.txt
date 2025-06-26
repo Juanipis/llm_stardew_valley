@@ -1,8 +1,0 @@
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\obj\Debug\net6.0\StardewEchoes.csproj.AssemblyReference.cache
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\obj\Debug\net6.0\StardewEchoes.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\obj\Debug\net6.0\StardewEchoes.AssemblyInfoInputs.cache
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\obj\Debug\net6.0\StardewEchoes.AssemblyInfo.cs
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\obj\Debug\net6.0\StardewEchoes.csproj.CoreCompileInputs.cache
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\bin\Debug\net6.0\StardewEchoes.deps.json
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\bin\Debug\net6.0\StardewEchoes.dll
-C:\Users\juani\Projects\llm_stardew_valley\StardewEchoes\obj\Debug\net6.0\StardewEchoes.dll

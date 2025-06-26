@@ -1,0 +1,10 @@
+{
+    "Name": "StardewEchoes",
+    "Author": "Juanipis",
+    "Version": "1.0.0",
+    "Description": "Giving life to the npcs",
+    "UniqueID": "juanipis.StardewEchoes",
+    "EntryDll": "StardewEchoes.dll",
+    "MinimumApiVersion": "4.0.0",
+    "UpdateKeys": []
+}
