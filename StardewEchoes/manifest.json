@@ -1,0 +1,10 @@
+{
+  "Name": "Stardew Echoes",
+  "Author": "Juanipis",
+  "Version": "1.0.0",
+  "Description": "Un mod para Stardew Valley que usa un LLM para generar diálogos dinámicos.",
+  "UniqueID": "juanipis.StardewEchoes",
+  "UpdateKeys": [],
+  "ContentPackFor": null,
+  "Dependencies": []
+}
