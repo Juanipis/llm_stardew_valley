@@ -27,6 +27,7 @@ htmlcov/
 .venv/
 venv/
 ENV/
+*.pyc
 
 # C# and .NET-related ignores
 bin/
