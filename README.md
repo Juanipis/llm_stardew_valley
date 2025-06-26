@@ -3,4 +3,4 @@ The LLM is hosted on a server and the mod communicates with it to get the dialog
 
 dotnet build /p:GamePath="D:\Cracked\Stardew Valley"
 
-d
+debug wctm lewis
