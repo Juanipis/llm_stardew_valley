@@ -4,10 +4,11 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// Modelo original de usuarios para autenticación web
 model User {
   id              Int      @id @default(autoincrement())
   email           String   @unique
@@ -26,6 +27,7 @@ model World {
   @@unique([userId, farm_name])
 }
 
+// Modelo original para retrocompatibilidad
 model Interaction {
   id                 Int      @id @default(autoincrement())
   npcName            String
@@ -34,4 +36,94 @@ model Interaction {
   world              World    @relation(fields: [worldId], references: [id])
   worldId            Int
   createdAt          DateTime @default(now())
+}
+
+// Nuevos modelos para el sistema de memoria y personalidad
+
+model Player {
+  id                  String                    @id @default(cuid())
+  name                String                    @unique
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  personalityProfiles PlayerPersonalityProfile[]
+  conversations       Conversation[]
+}
+
+model Npc {
+  id                  String                    @id @default(cuid())
+  name                String                    @unique
+  location            String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  personalityProfiles PlayerPersonalityProfile[]
+  conversations       Conversation[]
+}
+
+// Perfil de personalidad que un NPC tiene de un jugador
+model PlayerPersonalityProfile {
+  id           String  @id @default(cuid())
+  playerId     String
+  npcId        String
+  player       Player  @relation(fields: [playerId], references: [id])
+  npc          Npc     @relation(fields: [npcId], references: [id])
+  
+  // Resumen textual de la personalidad percibida
+  summary      String  @db.Text
+  
+  // Puntuaciones numéricas (0-10) - Métricas básicas de personalidad
+  friendliness Float   @default(5.0) // Amistoso vs Hostil
+  extroversion Float   @default(5.0) // Extrovertido vs Tímido
+  sincerity    Float   @default(5.0) // Sincero vs Sarcástico/Bromista
+  curiosity    Float   @default(5.0) // Curioso/Informativo vs Directo/Desinteresado
+  
+  // Métricas emocionales avanzadas (0-10)
+  trust              Float   @default(5.0) // Confianza en el jugador
+  respect            Float   @default(5.0) // Respeto hacia el jugador
+  affection          Float   @default(3.0) // Cariño/afecto emocional
+  annoyance          Float   @default(2.0) // Nivel de irritación
+  admiration         Float   @default(3.0) // Admiración hacia el jugador
+  romantic_interest  Float   @default(1.0) // Interés romántico (solo para NPCs solteros)
+  humor_compatibility Float  @default(5.0) // Compatibilidad de humor/bromas
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([playerId, npcId])
+}
+
+// Una sesión de conversación completa
+model Conversation {
+  id              String          @id @default(cuid())
+  startTime       DateTime        @default(now())
+  endTime         DateTime?
+  playerId        String
+  npcId           String
+  player          Player          @relation(fields: [playerId], references: [id])
+  npc             Npc             @relation(fields: [npcId], references: [id])
+  
+  // Contexto de la conversación
+  season          String?
+  dayOfMonth      Int?
+  dayOfWeek       Int?
+  timeOfDay       Int?
+  year            Int?
+  weather         String?
+  playerLocation  String?
+  friendshipHearts Int?
+  
+  dialogueEntries DialogueEntry[]
+}
+
+// Cada línea de diálogo dentro de una conversación
+model DialogueEntry {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  speaker        String       // "player" o el nombre del NPC
+  message        String       @db.Text
+  timestamp      DateTime     @default(now())
+  
+  // El embedding vectorial del mensaje para búsqueda semántica
+  // Usando dimensión 768 para text-embedding-004 de Google
+  embedding      Unsupported("vector(768)")?
 }
