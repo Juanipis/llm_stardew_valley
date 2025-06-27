@@ -53,3 +53,6 @@ poetry run uvicorn app.main:app --reload
 The server will be available at `http://127.0.0.1:8000`. The `--reload` flag will automatically restart the server whenever you make changes to the code.
 
 You can now access the API documentation at `http://127.0.0.1:8000/docs`.
+
+
+poetry run prisma migrate dev      

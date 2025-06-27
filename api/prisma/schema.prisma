@@ -1,11 +1,13 @@
 generator client {
   provider = "prisma-client-py"
   recursive_type_depth = 5
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 // Modelo original de usuarios para autenticación web
@@ -47,6 +49,9 @@ model Player {
   updatedAt          DateTime                  @updatedAt
   personalityProfiles PlayerPersonalityProfile[]
   conversations       Conversation[]
+  memoryEpisodes      MemoryEpisode[]
+  preferences         PlayerPreference[]
+  milestones          RelationshipMilestone[]
 }
 
 model Npc {
@@ -57,6 +62,10 @@ model Npc {
   updatedAt          DateTime                  @updatedAt
   personalityProfiles PlayerPersonalityProfile[]
   conversations       Conversation[]
+  emotionalState      EmotionalState?
+  memoryEpisodes      MemoryEpisode[]
+  preferences         PlayerPreference[]
+  milestones          RelationshipMilestone[]
 }
 
 // Perfil de personalidad que un NPC tiene de un jugador
@@ -124,6 +133,158 @@ model DialogueEntry {
   timestamp      DateTime     @default(now())
   
   // El embedding vectorial del mensaje para búsqueda semántica
-  // Usando dimensión 768 para text-embedding-004 de Google
-  embedding      Unsupported("vector(768)")?
+  // Usando dimensión 384 para el modelo local `all-MiniLM-L6-v2`
+  embedding      Unsupported("vector(384)")?
+}
+
+// NEW: Specific memorable events beyond just dialogue
+model MemoryEpisode {
+  id              String    @id @default(cuid())
+  playerId        String
+  npcId           String
+  player          Player    @relation(fields: [playerId], references: [id])
+  npc             Npc       @relation(fields: [npcId], references: [id])
+  
+  // Event details
+  eventType       MemoryType
+  title           String    // "Gave me a diamond on my birthday"
+  description     String    @db.Text
+  emotionalImpact Float     // -10 to +10 (how much this affected the NPC)
+  importance      Float     @default(5.0) // 1-10 (how memorable/significant)
+  
+  // Context
+  location        String?
+  season          String?
+  gameDate        String?   // "Spring 15, Year 1"
+  
+  // Memory decay
+  accessCount     Int       @default(1)   // How often recalled
+  lastAccessed    DateTime  @default(now())
+  decayRate       Float     @default(1.0) // How fast this memory fades
+  
+  embedding       Unsupported("vector(384)")?
+  createdAt       DateTime  @default(now())
+}
+
+// NEW: NPC's current emotional state (changes throughout the day/interactions)
+model EmotionalState {
+  id                String   @id @default(cuid())
+  npcId            String   @unique
+  npc              Npc      @relation(fields: [npcId], references: [id])
+  
+  // Current emotional state (changes throughout the day/interactions)
+  currentMood      Mood     @default(NEUTRAL)
+  moodIntensity    Float    @default(5.0) // 1-10
+  
+  // Temporary emotional modifiers (last 1-3 conversations)
+  recentJoy        Float    @default(0.0) // -5 to +5
+  recentSadness    Float    @default(0.0)
+  recentAnger      Float    @default(0.0)
+  recentAnxiety    Float    @default(0.0)
+  recentExcitement Float    @default(0.0)
+  
+  // Causes of current state
+  lastInteractionEffect String? @db.Text
+  externalFactors       String? @db.Text // Weather, events, etc.
+  
+  lastUpdated      DateTime @default(now())
+}
+
+// NEW: What the NPC learns about the player's preferences
+model PlayerPreference {
+  id               String      @id @default(cuid())
+  playerId         String
+  npcId            String
+  player           Player      @relation(fields: [playerId], references: [id])
+  npc              Npc         @relation(fields: [npcId], references: [id])
+  
+  category         PreferenceCategory
+  item             String      // "Amethyst", "Fishing", "Pierre's Store"
+  preference       Float       // -10 to +10 (how much player likes/dislikes)
+  confidence       Float       // 0-10 (how sure NPC is about this)
+  
+  evidenceSource   String      @db.Text // "Gave me 3 amethysts", "Said they hate shopping"
+  lastObserved     DateTime    @default(now())
+  
+  @@unique([playerId, npcId, category, item])
+}
+
+// NEW: Relationship milestone tracking
+model RelationshipMilestone {
+  id          String      @id @default(cuid())
+  playerId    String
+  npcId       String
+  player      Player      @relation(fields: [playerId], references: [id])
+  npc         Npc         @relation(fields: [npcId], references: [id])
+  
+  milestone   MilestoneType
+  description String      @db.Text
+  gameDate    String?     // "Spring 15, Year 1"
+  heartLevel  Int?        // Friendship level when reached
+  
+  achieved    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  
+  @@unique([playerId, npcId, milestone])
+}
+
+// ENUMS for the new system
+
+enum MemoryType {
+  GIFT_RECEIVED
+  GIFT_GIVEN
+  SHARED_ACTIVITY
+  EMOTIONAL_MOMENT
+  FAVOR_ASKED
+  FAVOR_DONE
+  CONFLICT
+  COMPLIMENT
+  INSULT
+  ROMANTIC_MOMENT
+  ACHIEVEMENT_SHARED
+  SECRET_TOLD
+  BETRAYAL
+  SUPPORT_GIVEN
+  SUPPORT_RECEIVED
+}
+
+enum Mood {
+  VERY_HAPPY
+  HAPPY
+  CONTENT
+  NEUTRAL
+  WORRIED
+  SAD
+  ANGRY
+  EXCITED
+  ROMANTIC
+  NOSTALGIC
+  STRESSED
+}
+
+enum PreferenceCategory {
+  GIFTS
+  ACTIVITIES
+  PEOPLE
+  PLACES
+  TOPICS
+  FOODS
+  SEASONS
+  WEATHER
+}
+
+enum MilestoneType {
+  FIRST_MEETING
+  FIRST_GIFT
+  FIRST_CONVERSATION
+  BECAME_FRIENDS
+  FIRST_SECRET_SHARED
+  FIRST_FAVOR
+  FIRST_CONFLICT
+  ROMANTIC_INTEREST_SPARKED
+  FIRST_DATE
+  RELATIONSHIP_OFFICIAL
+  MARRIED
+  BEST_FRIENDS
+  RIVAL_RELATIONSHIP
 }

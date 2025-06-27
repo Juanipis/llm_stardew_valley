@@ -4,6 +4,8 @@ import logging
 from ..models.request import DialogueRequest, DialogueResponse
 from ..config import settings
 from ..services.memory_service import memory_service
+from ..services.memory.emotional_state_service import emotional_state_service
+from ..services.memory.memory_consolidation_service import memory_consolidation_service
 from ..db import db
 
 router = APIRouter()
@@ -25,7 +27,7 @@ async def generate_dialogue(
         if not client:
             raise HTTPException(status_code=500, detail="Gemini API not configured")
 
-        # === NUEVA LÓGICA DE MEMORIA ===
+        # === ENHANCED MEMORY & EMOTIONAL SYSTEM ===
 
         # 1. Obtener o crear jugador y NPC
         logger.debug("Creating/retrieving player: %s", request.player_name)
@@ -44,9 +46,19 @@ async def generate_dialogue(
             )
             personality_context = ""
             relevant_memories_str = ""
+            emotional_context = ""
             conversation_id = ""
         else:
-            # 2. Obtener perfil de personalidad
+            # 2. Get NPC's current emotional state
+            logger.debug("Retrieving emotional state for NPC %s", npc_id)
+            emotional_state = await emotional_state_service.get_emotional_state(npc_id)
+            emotional_context = (
+                emotional_state_service.generate_mood_context_for_dialogue(
+                    emotional_state
+                )
+            )
+
+            # 3. Obtener perfil de personalidad
             logger.debug(
                 "Retrieving personality profile for player %s and NPC %s",
                 player_id,
@@ -58,13 +70,14 @@ async def generate_dialogue(
             logger.debug("Personality profile: %s", personality_profile)
 
             # 🎭 GENERAR INSIGHT DE RELACIÓN
-            relationship_insight = memory_service.generate_relationship_insight(
-                personality_profile, request.player_name, request.npc_name
+            relationship_insight = await memory_service.generate_relationship_insight(
+                personality_profile, request.player_name, request.npc_name, npc_id
             )
             logger.info("=== RELATIONSHIP INSIGHT ===")
             for line in relationship_insight.strip().split("\n"):
                 logger.info(line)
             logger.info("==============================")
+
             personality_context = f"""
 **Your current perception of {request.player_name}:**
 {personality_profile["summary"]}
@@ -86,9 +99,23 @@ async def generate_dialogue(
 
 IMPORTANT: Adjust your tone, dialogue, and responses based on these metrics. High affection = warmer, low trust = more guarded, high annoyance = more irritated or short responses, high romantic interest = flirtier (if appropriate for the character), etc."""
 
-            # 3. Recuperar recuerdos relevantes si hay respuesta del jugador
+            # 4. Enhanced memory search with human-like weighting
             relevant_memories_str = ""
             if request.player_response:
+                # Determine response tone for emotional state updates
+                response_tone = "neutral"
+                if any(
+                    word in request.player_response.lower()
+                    for word in ["thanks", "love", "amazing", "wonderful", "gift"]
+                ):
+                    response_tone = "friendly"
+                elif any(
+                    word in request.player_response.lower()
+                    for word in ["stupid", "hate", "annoying", "boring", "whatever"]
+                ):
+                    response_tone = "provocative"
+
+                # Search for relevant memories with enhanced weighting
                 relevant_memories = await memory_service.search_relevant_memories(
                     player_id, npc_id, request.player_response
                 )
@@ -101,12 +128,22 @@ IMPORTANT: Adjust your tone, dialogue, and responses based on these metrics. Hig
                             if memory["speaker"] == request.npc_name
                             else request.player_name
                         )
-                        memory_context += (
-                            f"- {speaker} once said: '{memory['message']}'\n"
-                        )
+
+                        # Include emotional and importance scores for context
+                        memory_details = f"- {speaker} once said: '{memory['message']}'"
+                        if memory.get("emotional_score", 0) > 7:
+                            memory_details += (
+                                " (This memory feels emotionally significant)"
+                            )
+                        if memory.get("location"):
+                            memory_details += f" [at {memory['location']}]"
+                        if memory.get("season"):
+                            memory_details += f" [during {memory['season']}]"
+
+                        memory_context += memory_details + "\n"
                     relevant_memories_str = memory_context
 
-            # 4. Obtener o crear conversación activa
+            # 5. Obtener o crear conversación activa
             context_data = {
                 "season": request.season,
                 "day_of_month": request.day_of_month,
@@ -122,7 +159,7 @@ IMPORTANT: Adjust your tone, dialogue, and responses based on these metrics. Hig
                 player_id, npc_id, context_data
             )
 
-        # === CONSTRUCCIÓN DEL PROMPT MEJORADO ===
+        # === ENHANCED DIALOGUE PROMPT WITH EMOTIONAL STATE ===
 
         # Build conversation history string
         conversation_context = ""
@@ -156,6 +193,9 @@ IMPORTANT INSTRUCTIONS:
 - {language_instruction}
 - VERY IMPORTANT: The NPC message and each player response option must be no longer than 30 words. Keep them concise and short so they fit on the game screen but sometimes some can be longer, depends of the context.
 
+**YOUR CURRENT EMOTIONAL STATE:**
+{emotional_context}
+
 {personality_context}
 {relevant_memories_str}
 
@@ -174,8 +214,9 @@ Generate a response as {request.npc_name} that:
 1. Responds naturally to the conversation
 2. Reflects {request.npc_name}'s personality and role in Stardew Valley
 3. Considers the friendship level and your perception of {request.player_name}
-4. References relevant memories if appropriate
-5. Is suitable for in-game dialogue
+4. References relevant memories if appropriate and meaningful
+5. Shows your current emotional state through tone and word choice
+6. Is suitable for in-game dialogue
 
 Then provide exactly 3 response options for the player with these specific tones:
 OPTION_1: A FRIENDLY/CORDIAL response - Be warm, kind, humorous, and cheerful. Show genuine interest and positivity.
@@ -191,7 +232,7 @@ OPTION_2: [Neutral/informative player response]
 OPTION_3: [Provocative/teasing player response]"""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite-preview-06-17", contents=prompt
+            model=settings.dialogue_model, contents=prompt
         )
 
         # Parse the response
@@ -229,30 +270,75 @@ OPTION_3: [Provocative/teasing player response]"""
                     "Do you always look like that or is it just today?",  # Provocative
                 ]
 
-        # === GUARDAR EN MEMORIA ===
+        # === ENHANCED MEMORY SAVING WITH EMBEDDINGS ===
         if conversation_id:
             logger.debug("Saving dialogue to conversation: %s", conversation_id)
 
-            # Guardar el mensaje del NPC
+            # Guardar el mensaje del NPC con embedding
             await memory_service.add_dialogue_entry(
                 conversation_id,
                 request.npc_name,
                 npc_message,
-                generate_embedding=False,  # Temporalmente sin embeddings
+                generate_embedding=True,  # Enable embeddings
             )
             logger.debug("Saved NPC message: %s", npc_message[:50] + "...")
 
-            # Si hay respuesta del jugador, también guardarla
+            # Si hay respuesta del jugador, también guardarla con embedding
             if request.player_response:
                 await memory_service.add_dialogue_entry(
                     conversation_id,
                     "player",
                     request.player_response,
-                    generate_embedding=False,  # Temporalmente sin embeddings
+                    generate_embedding=True,  # Enable embeddings
                 )
                 logger.debug(
                     "Saved player response: %s", request.player_response[:50] + "..."
                 )
+
+                # Update NPC's emotional state based on the interaction
+                if npc_id:
+                    # Build conversation transcript for emotional analysis
+                    conversation_transcript = (
+                        conversation_context
+                        + f"\nPlayer: {request.player_response}\n{request.npc_name}: {npc_message}"
+                    )
+
+                    # Determine player response tone
+                    response_tone = "neutral"
+                    if any(
+                        word in request.player_response.lower()
+                        for word in [
+                            "thanks",
+                            "love",
+                            "amazing",
+                            "wonderful",
+                            "gift",
+                            "great",
+                            "awesome",
+                        ]
+                    ):
+                        response_tone = "friendly"
+                    elif any(
+                        word in request.player_response.lower()
+                        for word in [
+                            "stupid",
+                            "hate",
+                            "annoying",
+                            "boring",
+                            "whatever",
+                            "dumb",
+                            "lame",
+                        ]
+                    ):
+                        response_tone = "provocative"
+
+                    # Update emotional state in background
+                    background_tasks.add_task(
+                        emotional_state_service.update_emotional_state_from_interaction,
+                        npc_id,
+                        conversation_transcript,
+                        response_tone,
+                    )
         else:
             logger.warning("No conversation ID available, not saving to memory")
 
@@ -270,7 +356,7 @@ OPTION_3: [Provocative/teasing player response]"""
 async def end_conversation(
     player_name: str, npc_name: str, background_tasks: BackgroundTasks
 ):
-    """Endpoint para marcar el fin de una conversación y disparar actualización de personalidad"""
+    """Enhanced endpoint that now triggers both personality updates AND memory consolidation"""
     try:
         player_id = await memory_service.get_or_create_player(player_name)
         npc_id = await memory_service.get_or_create_npc(npc_name)
@@ -304,12 +390,23 @@ async def end_conversation(
         # Marcar conversación como terminada
         await memory_service.end_conversation(conversation_id)
 
-        # Disparar actualización de personalidad en segundo plano
+        # ENHANCED: Trigger both personality updates AND memory consolidation
         background_tasks.add_task(
             memory_service.update_personality_profile_async, conversation_id
         )
 
-        return {"message": "Conversation ended successfully"}
+        # NEW: Consolidate conversation into episodic memories, preferences, etc.
+        background_tasks.add_task(
+            memory_consolidation_service.consolidate_conversation, conversation_id
+        )
+
+        logger.info(
+            f"Conversation ended between {player_name} and {npc_name} - triggering memory consolidation"
+        )
+
+        return {
+            "message": "Conversation ended successfully - memories will be consolidated"
+        }
 
     except HTTPException:
         raise
