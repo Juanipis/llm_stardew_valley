@@ -1,15 +1,115 @@
 # StardewEchoes API
 
-This is the backend API for the StardewEchoes mod. It uses FastAPI, Prisma, and Google Gemini to generate dialogue for characters in Stardew Valley.
+This is the backend API for the StardewEchoes mod. It uses FastAPI to generate dialogue for characters in Stardew Valley, with support for multiple LLM providers.
 
-## Setup
+## ⚙️ Configuration
+
+The application is configured through environment variables.
+
+### 1. LLM Provider Setup
+
+The API uses `litellm` to connect to different LLM providers. You can choose between `google`, `openai`, or `ollama`.
+
+Create a `.env` file in the `api` directory and add the necessary variables based on your chosen provider.
+
+**Google Gemini:**
+
+```env
+# .env
+LLM_PROVIDER="google"
+GEMINI_API_KEY="your-google-gemini-api-key"
+# Get your key from https://aistudio.google.com/app/apikey
+```
+
+**OpenAI:**
+
+```env
+# .env
+LLM_PROVIDER="openai"
+OPENAI_API_KEY="your-openai-api-key"
+```
+
+**Ollama (for local models):**
+
+Make sure you have [Ollama](https://ollama.ai/) installed and running.
+
+```env
+# .env
+LLM_PROVIDER="ollama"
+OLLAMA_API_BASE_URL="http://localhost:11434" # Default Ollama URL
+# No API key is needed for local Ollama
+```
+
+### 2. Model Selection
+
+You can specify which models to use for different tasks by setting environment variables in your `.env` file. If you don't set them, the application will use default values from `api/app/config.py`.
+
+Here are some examples of how you might configure your models for each provider:
+
+**For Google:**
+
+```env
+# .env
+LLM_PROVIDER="google"
+GEMINI_API_KEY="..."
+
+# Recommended models for Google
+DIALOGUE_MODEL="gemini-1.5-flash-latest"
+EMBEDDING_MODEL="text-embedding-004"
+PERSONALITY_MODEL="gemini-1.5-flash-latest"
+EMOTIONAL_MODEL="gemini-1.5-flash-latest"
+MEMORY_CONSOLIDATION_MODEL="gemini-1.5-flash-latest"
+```
+
+**For OpenAI:**
+
+```env
+# .env
+LLM_PROVIDER="openai"
+OPENAI_API_KEY="..."
+
+# Recommended models for OpenAI
+DIALOGUE_MODEL="gpt-4o"
+EMBEDDING_MODEL="text-embedding-3-small"
+PERSONALITY_MODEL="gpt-4o-mini"
+EMOTIONAL_MODEL="gpt-4o-mini"
+MEMORY_CONSOLIDATION_MODEL="gpt-4o-mini"
+```
+
+**For Ollama:**
+
+```env
+# .env
+LLM_PROVIDER="ollama"
+OLLAMA_API_BASE_URL="http://localhost:11434"
+
+# Make sure you have pulled these models, e.g., `ollama pull llama3`
+DIALOGUE_MODEL="llama3"
+EMBEDDING_MODEL="nomic-embed-text"
+PERSONALITY_MODEL="llama3"
+EMOTIONAL_MODEL="llama3"
+MEMORY_CONSOLIDATION_MODEL="llama3"
+```
+
+The `LLM_PROVIDER` you set will be automatically prepended to the model names when making API calls. For example, if you set `LLM_PROVIDER="openai"` and `DIALOGUE_MODEL="gpt-4o"`, the final model string used will be `openai/gpt-4o`.
+
+### 3. Database
+
+This project uses Prisma with a PostgreSQL database. Set your database connection string in the `.env` file:
+
+```env
+# .env
+DATABASE_URL="postgresql://user:password@localhost:5432/mydatabase"
+```
+
+## 🚀 Running the API
 
 ### Prerequisites
 
 - Python 3.9+
-- [Poetry](https://python-poetry.org/docs/#installation) for dependency management.
+- [Poetry](https://python-poetry.org/docs/#installation)
 
-### Installation
+### Installation & Setup
 
 1.  **Clone the repository and navigate to the `api` directory:**
 
@@ -18,41 +118,27 @@ This is the backend API for the StardewEchoes mod. It uses FastAPI, Prisma, and 
     cd llm_stardew_valley/api
     ```
 
-2.  **Create a virtual environment and install dependencies:**
+2.  **Install dependencies:**
 
     ```bash
     poetry install
     ```
 
-3.  **Set up your environment variables:**
+3.  **Create your `.env` file** with the provider and database configurations as explained above.
 
-    Create a `.env` file in the `api` directory by copying the example file:
-
+4.  **Apply database migrations and generate the Prisma client:**
     ```bash
-    cp .env.example .env
-    ```
-
-    Now, open the `.env` file and add your `GEMINI_API_KEY` and your `DATABASE_URL` for Prisma.
-
-4.  **Generate the Prisma client:**
-
-    ```bash
+    poetry run prisma migrate dev
     poetry run prisma generate
     ```
 
-    This command reads your `prisma/schema.prisma` file and generates the Python client code necessary to interact with your database.
+### Start the Server
 
-## Running the Server
-
-To run the FastAPI server, use the following command:
+To run the FastAPI server:
 
 ```bash
 poetry run uvicorn app.main:app --reload
 ```
 
-The server will be available at `http://127.0.0.1:8000`. The `--reload` flag will automatically restart the server whenever you make changes to the code.
-
-You can now access the API documentation at `http://127.0.0.1:8000/docs`.
-
-
-poetry run prisma migrate dev      
+The server will be available at `http://127.0.0.1:8000`.
+You can access the auto-generated API documentation at `http://127.0.0.1:8000/docs`.

@@ -46,10 +46,14 @@ namespace StardewEchoes.Handlers
 
     public int GetFriendshipHearts(string npcName)
     {
-      if (Game1.player.friendshipData.ContainsKey(npcName))
+      return GetFriendshipPoints(npcName) / 250;
+    }
+
+    public int GetFriendshipPoints(string npcName)
+    {
+      if (Game1.player.friendshipData.TryGetValue(npcName, out Friendship friendship))
       {
-        int points = Game1.player.friendshipData[npcName].Points;
-        return points / 250;
+        return friendship.Points;
       }
       return 0;
     }

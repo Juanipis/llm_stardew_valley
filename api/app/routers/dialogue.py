@@ -1,19 +1,15 @@
-from google import genai
-from fastapi import APIRouter, HTTPException, BackgroundTasks
 import logging
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from ..models.request import DialogueRequest, DialogueResponse
 from ..config import settings
 from ..services.memory_service import memory_service
 from ..services.memory.emotional_state_service import emotional_state_service
-from ..services.memory.memory_consolidation_service import memory_consolidation_service
+from ..services.memory.analysis_service import analysis_service
+from ..services.llm_service import llm_service
 from ..db import db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-client = (
-    genai.Client(api_key=settings.gemini_api_key) if settings.gemini_api_key else None
-)
 
 
 @router.post("/generate_dialogue", response_model=DialogueResponse)
@@ -23,9 +19,6 @@ async def generate_dialogue(
     try:
         logger.info("Generating dialogue for: %s", request.player_name)
         logger.debug("Request details: %s", request)
-
-        if not client:
-            raise HTTPException(status_code=500, detail="Gemini API not configured")
 
         # === ENHANCED MEMORY & EMOTIONAL SYSTEM ===
 
@@ -102,19 +95,6 @@ IMPORTANT: Adjust your tone, dialogue, and responses based on these metrics. Hig
             # 4. Enhanced memory search with human-like weighting
             relevant_memories_str = ""
             if request.player_response:
-                # Determine response tone for emotional state updates
-                response_tone = "neutral"
-                if any(
-                    word in request.player_response.lower()
-                    for word in ["thanks", "love", "amazing", "wonderful", "gift"]
-                ):
-                    response_tone = "friendly"
-                elif any(
-                    word in request.player_response.lower()
-                    for word in ["stupid", "hate", "annoying", "boring", "whatever"]
-                ):
-                    response_tone = "provocative"
-
                 # Search for relevant memories with enhanced weighting
                 relevant_memories = await memory_service.search_relevant_memories(
                     player_id, npc_id, request.player_response
@@ -231,12 +211,14 @@ OPTION_1: [Friendly/cordial player response]
 OPTION_2: [Neutral/informative player response]  
 OPTION_3: [Provocative/teasing player response]"""
 
-        response = client.models.generate_content(
-            model=settings.dialogue_model, contents=prompt
+        messages = [{"role": "user", "content": prompt}]
+
+        response = await llm_service.acompletion(
+            model=settings.dialogue_model, messages=messages
         )
 
         # Parse the response
-        response_text = getattr(response, "text", "") or str(response)
+        response_text = response.choices[0].message.content
         lines = response_text.split("\n")
 
         npc_message = ""
@@ -270,6 +252,7 @@ OPTION_3: [Provocative/teasing player response]"""
                     "Do you always look like that or is it just today?",  # Provocative
                 ]
 
+        friendship_points_change = 0
         # === ENHANCED MEMORY SAVING WITH EMBEDDINGS ===
         if conversation_id:
             logger.debug("Saving dialogue to conversation: %s", conversation_id)
@@ -295,50 +278,8 @@ OPTION_3: [Provocative/teasing player response]"""
                     "Saved player response: %s", request.player_response[:50] + "..."
                 )
 
-                # Update NPC's emotional state based on the interaction
-                if npc_id:
-                    # Build conversation transcript for emotional analysis
-                    conversation_transcript = (
-                        conversation_context
-                        + f"\nPlayer: {request.player_response}\n{request.npc_name}: {npc_message}"
-                    )
-
-                    # Determine player response tone
-                    response_tone = "neutral"
-                    if any(
-                        word in request.player_response.lower()
-                        for word in [
-                            "thanks",
-                            "love",
-                            "amazing",
-                            "wonderful",
-                            "gift",
-                            "great",
-                            "awesome",
-                        ]
-                    ):
-                        response_tone = "friendly"
-                    elif any(
-                        word in request.player_response.lower()
-                        for word in [
-                            "stupid",
-                            "hate",
-                            "annoying",
-                            "boring",
-                            "whatever",
-                            "dumb",
-                            "lame",
-                        ]
-                    ):
-                        response_tone = "provocative"
-
-                    # Update emotional state in background
-                    background_tasks.add_task(
-                        emotional_state_service.update_emotional_state_from_interaction,
-                        npc_id,
-                        conversation_transcript,
-                        response_tone,
-                    )
+                # The emotional state is no longer updated here, but at the end of the conversation.
+                # This saves an LLM call on every turn.
         else:
             logger.warning("No conversation ID available, not saving to memory")
 
@@ -356,7 +297,7 @@ OPTION_3: [Provocative/teasing player response]"""
 async def end_conversation(
     player_name: str, npc_name: str, background_tasks: BackgroundTasks
 ):
-    """Enhanced endpoint that now triggers both personality updates AND memory consolidation"""
+    """Triggers the new unified post-conversation analysis service."""
     try:
         player_id = await memory_service.get_or_create_player(player_name)
         npc_id = await memory_service.get_or_create_npc(npc_name)
@@ -390,22 +331,17 @@ async def end_conversation(
         # Marcar conversación como terminada
         await memory_service.end_conversation(conversation_id)
 
-        # ENHANCED: Trigger both personality updates AND memory consolidation
+        # NEW: Trigger the single, unified analysis service in the background
         background_tasks.add_task(
-            memory_service.update_personality_profile_async, conversation_id
-        )
-
-        # NEW: Consolidate conversation into episodic memories, preferences, etc.
-        background_tasks.add_task(
-            memory_consolidation_service.consolidate_conversation, conversation_id
+            analysis_service.analyze_conversation_and_update_memory, conversation_id
         )
 
         logger.info(
-            f"Conversation ended between {player_name} and {npc_name} - triggering memory consolidation"
+            f"Conversation ended between {player_name} and {npc_name} - triggering unified memory analysis."
         )
 
         return {
-            "message": "Conversation ended successfully - memories will be consolidated"
+            "message": "Conversation ended successfully - unified analysis will be performed."
         }
 
     except HTTPException:

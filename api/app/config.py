@@ -3,17 +3,25 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
+    # LLM Provider settings
+    LLM_PROVIDER: str = "google"  # 'google', 'openai', or 'ollama'
+
+    # API Keys
     gemini_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+
+    # Base URLs for local models
+    ollama_api_base_url: Optional[str] = None
+
     database_url: Optional[str] = None
 
-    # Modelos de Gemini configurables
-    embedding_model: str = "text-embedding-004"  # Modelo para embeddings
-    dialogue_model: str = "gemma-3n-e4b-it"  # Modelo para generación de diálogo
-    personality_model: str = "gemma-3n-e4b-it"  # Modelo para análisis de personalidad
-    emotional_model: str = "gemma-3n-e4b-it"  # Modelo para análisis emocional
-    memory_consolidation_model: str = (
-        "gemma-3n-e4b-it"  # Modelo para consolidación de memoria
-    )
+    # Model names (can be overridden by environment variables)
+    # These are the default models if not specified in .env
+    embedding_model: str = "text-embedding-004"
+    dialogue_model: str = "gemini-1.5-flash-latest"
+    personality_model: str = "gemini-1.5-flash-latest"
+    emotional_model: str = "gemini-1.5-flash-latest"
+    memory_consolidation_model: str = "gemini-1.5-flash-latest"
 
     # Configuraciones adicionales
     max_relevant_memories: int = 3

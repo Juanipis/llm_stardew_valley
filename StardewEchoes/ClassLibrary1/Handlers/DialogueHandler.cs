@@ -43,6 +43,23 @@ namespace StardewEchoes.Handlers
       try
       {
         var dialogueResponse = await GetDialogueFromAPI(npc, playerResponse);
+
+        if (playerResponse != null && dialogueResponse.friendship_change != 0)
+        {
+          int oldPoints = gameContextHandler.GetFriendshipPoints(npc.Name);
+          Game1.player.changeFriendship(dialogueResponse.friendship_change, npc);
+          int newPoints = gameContextHandler.GetFriendshipPoints(npc.Name);
+
+          if (dialogueResponse.friendship_change > 0)
+          {
+            Monitor.Log($"{npc.Name}'s friendship increased by {dialogueResponse.friendship_change} points. (From {oldPoints} to {newPoints})", LogLevel.Info);
+          }
+          else
+          {
+            Monitor.Log($"{npc.Name}'s friendship decreased by {-dialogueResponse.friendship_change} points. (From {oldPoints} to {newPoints})", LogLevel.Info);
+          }
+        }
+
         AddToConversationHistory(npc.Name, "npc", dialogueResponse.npc_message);
 
         this.npcWithPendingOptions = npc;

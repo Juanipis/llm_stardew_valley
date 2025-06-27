@@ -1,22 +1,14 @@
 import logging
-import json
 from typing import Dict, Any
 
-from google import genai
-
 from app.db import db
-from app.config import settings
-from app.services.memory.vector_service import vector_service
 
 logger = logging.getLogger(__name__)
 
 
 class PersonalityService:
     def __init__(self):
-        if settings.gemini_api_key:
-            self.client = genai.Client(api_key=settings.gemini_api_key)
-        else:
-            self.client = None
+        pass
 
     async def get_personality_profile(
         self, player_id: str, npc_id: str
@@ -65,159 +57,6 @@ class PersonalityService:
             logger.error(f"Error en get_personality_profile: {e}")
             # Fallback a un perfil genérico en caso de error grave
             return self._get_default_personality_for_npc("Unknown")
-
-    async def update_personality_profile_async(self, conversation_id: str):
-        """
-        Actualiza el perfil de personalidad en segundo plano, incorporando memoria a largo plazo.
-        """
-        if not self.client:
-            logger.warning(
-                "Cliente de Gemini no disponible, no se puede actualizar la personalidad."
-            )
-            return
-
-        try:
-            # 1. Obtener datos de la conversación
-            conv = await db.conversation.find_unique(
-                where={"id": conversation_id},
-                include={
-                    "player": True,
-                    "npc": True,
-                    "dialogueEntries": {"order_by": {"timestamp": "asc"}},
-                },
-            )
-
-            if not conv or not conv.dialogueEntries:
-                logger.warning(
-                    f"No se encontró la conversación {conversation_id} o no tiene diálogos."
-                )
-                return
-
-            player_name, npc_name = conv.player.name, conv.npc.name
-
-            # 2. Obtener perfil actual y recuerdos a largo plazo
-            current_profile = await self.get_personality_profile(
-                conv.playerId, conv.npcId
-            )
-            long_term_memories = await vector_service.search_relevant_memories(
-                conv.playerId, conv.npcId, "summary of our relationship"
-            )
-
-            # 3. Construir el prompt mejorado
-            transcript = "\n".join(
-                f"{'Player' if entry.speaker == 'player' else npc_name}: {entry.message}"
-                for entry in conv.dialogueEntries
-            )
-
-            memories_str = "\n".join(
-                f"- {'You said' if m['speaker'] == npc_name else 'They said'}: '{m['message']}'"
-                for m in long_term_memories
-            )
-
-            prompt = self._build_personality_update_prompt(
-                player_name, npc_name, current_profile, transcript, memories_str
-            )
-
-            # 4. Llamar al LLM para el análisis
-            response = self.client.models.generate_content(
-                model=settings.personality_model, contents=prompt
-            )
-            response_text = getattr(response, "text", "") or str(response)
-
-            # 5. Parsear y actualizar la base de datos
-            new_profile_data = json.loads(response_text.strip())
-
-            update_data = {
-                "summary": new_profile_data["new_summary"],
-                "friendliness": float(new_profile_data["new_friendliness"]),
-                "extroversion": float(new_profile_data["new_extroversion"]),
-                "sincerity": float(new_profile_data["new_sincerity"]),
-                "curiosity": float(new_profile_data["new_curiosity"]),
-                "trust": float(new_profile_data["new_trust"]),
-                "respect": float(new_profile_data["new_respect"]),
-                "affection": float(new_profile_data["new_affection"]),
-                "annoyance": float(new_profile_data["new_annoyance"]),
-                "admiration": float(new_profile_data["new_admiration"]),
-                "romantic_interest": float(new_profile_data["new_romantic_interest"]),
-                "humor_compatibility": float(
-                    new_profile_data["new_humor_compatibility"]
-                ),
-            }
-
-            await db.playerpersonalityprofile.update(
-                where={
-                    "playerId_npcId": {"playerId": conv.playerId, "npcId": conv.npcId}
-                },
-                data=update_data,
-            )
-
-            logger.info(
-                f"Perfil de personalidad de {player_name} -> {npc_name} actualizado."
-            )
-
-        except json.JSONDecodeError:
-            logger.error(
-                f"Error al parsear JSON de la respuesta del LLM: {response_text}"
-            )
-        except Exception as e:
-            logger.error(
-                f"Error al actualizar el perfil de personalidad para la conversación {conversation_id}: {e}"
-            )
-
-    def _build_personality_update_prompt(
-        self, player_name, npc_name, profile, transcript, memories
-    ) -> str:
-        return f"""You are an AI assistant specialized in psychological analysis of dialogue.
-Your task is to update the personality profile that NPC {npc_name} has of player {player_name}.
-
-**Analysis Instructions:**
-- Analyze the **latest conversation** in the context of the **current relationship** and **past memories**.
-- Make **significant, meaningful adjustments** to the metrics. Be bold.
-- The player's choices (friendly, neutral, provocative) are a strong signal. React to them.
-- Rude or provocative behavior should notably increase **annoyance** and decrease **trust, respect, and affection**.
-- Kind and friendly behavior should do the opposite.
-- Update the **summary** to reflect the new emotional state of the relationship.
-
-**Current Profile of {player_name} (from {npc_name}'s perspective):**
-- Summary: {profile["summary"]}
-- Friendliness: {profile["friendliness"]}/10
-- Extroversion: {profile["extroversion"]}/10
-- Sincerity: {profile["sincerity"]}/10
-- Curiosity: {profile["curiosity"]}/10
-- Trust: {profile["trust"]}/10
-- Respect: {profile["respect"]}/10
-- Affection: {profile["affection"]}/10
-- Annoyance: {profile["annoyance"]}/10
-- Admiration: {profile["admiration"]}/10
-- Romantic Interest: {profile["romantic_interest"]}/10
-- Humor Compatibility: {profile["humor_compatibility"]}/10
-
-**Key Long-Term Memories You Have of Them:**
-{memories if memories else "No specific long-term memories stand out right now."}
-
-**Transcript of the Most Recent Conversation:**
-{transcript}
-
-**Your Task:**
-Based on all the above, provide a new personality profile in JSON format.
-- Adjust ALL scores. Scores must be between 0 and 10.
-- The summary must be a concise (max 60 words) reflection of your UPDATED feelings.
-
-Format the response as a single, clean JSON object with these exact keys:
-{{
-  "new_summary": "Updated summary here",
-  "new_friendliness": 7.5,
-  "new_extroversion": 6.0,
-  "new_sincerity": 5.0,
-  "new_curiosity": 8.0,
-  "new_trust": 6.5,
-  "new_respect": 7.0,
-  "new_affection": 4.5,
-  "new_annoyance": 3.0,
-  "new_admiration": 5.5,
-  "new_romantic_interest": 2.0,
-  "new_humor_compatibility": 7.5
-}}"""
 
     async def generate_relationship_insight(
         self,

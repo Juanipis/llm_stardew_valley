@@ -1,9 +1,10 @@
 import logging
 from typing import List, Dict, Any, Optional
-from google import genai
+
 
 from app.db import db
 from app.config import settings
+from app.services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +57,7 @@ try:
     local_embedding_service = LocalEmbeddingService()
 
 except ImportError as e:
-    logger.warning(
-        f"sentence-transformers not available ({e}), will use Gemini API only"
-    )
+    logger.warning(f"sentence-transformers not available ({e}), will use LiteLLM only")
     local_embedding_service = None
 
 
@@ -68,55 +67,40 @@ class VectorService:
     """
 
     def __init__(self):
-        if settings.gemini_api_key:
-            self.client = genai.Client(api_key=settings.gemini_api_key)
-        else:
-            self.client = None
+        pass
 
     async def generate_embedding(self, text: str) -> List[float]:
-        """Genera un embedding para un texto usando el servicio local o Google."""
+        """Generates an embedding for a text using the configured LLM provider."""
         try:
             # Try local embedding service first
             if local_embedding_service:
                 logger.debug(f"Generating embedding locally for text: {text[:100]}...")
                 embedding = local_embedding_service.generate_embedding(text)
-
                 if embedding:
                     logger.debug(
                         f"Generated local embedding with {len(embedding)} dimensions"
                     )
                     return embedding
-            else:
-                logger.debug("Local embedding service not available")
 
-            # Fallback to Google Gemini if local fails
-            if self.client:
-                logger.debug("Local embedding failed, trying Gemini API...")
-                response = self.client.models.embed_content(
-                    model=settings.embedding_model, contents=text
+            # Fallback to configured LLM provider via LiteLLM
+            response = await llm_service.aembedding(
+                model=settings.embedding_model, input_texts=[text]
+            )
+
+            if response and response.data:
+                embedding = response.data[0]["embedding"]
+                logger.debug(
+                    f"Generated LiteLLM embedding with {len(embedding)} dimensions"
                 )
-
-                if hasattr(response, "embedding") and response.embedding:
-                    embedding = (
-                        response.embedding.values
-                        if hasattr(response.embedding, "values")
-                        else response.embedding
-                    )
-                    logger.debug(
-                        f"Generated Gemini embedding with {len(embedding)} dimensions"
-                    )
-                    return embedding
-                else:
-                    logger.warning("No embedding returned from Gemini API")
-                    return []
+                return embedding
             else:
                 logger.warning(
-                    "No embedding service available (local failed, Gemini not configured)"
+                    f"No embedding returned from LiteLLM for model {settings.embedding_model}"
                 )
                 return []
 
         except Exception as e:
-            logger.error(f"Error al generar embedding: {e}")
+            logger.error(f"Error generating embedding with LiteLLM: {e}")
             return []
 
     async def search_relevant_memories(
@@ -192,10 +176,11 @@ class VectorService:
     ) -> List[Dict[str, Any]]:
         """Search dialogue entries using vector similarity."""
         try:
-            # Use raw SQL for vector similarity search
-            # This will work once embeddings are properly stored
+            embedding_vector = f"[{','.join(map(str, query_embedding))}]"
+
+            # Use raw SQL for vector similarity search with pgvector
             query = """
-            SELECT 
+            SELECT
                 de.id,
                 de.message,
                 de.speaker,
@@ -204,16 +189,18 @@ class VectorService:
                 c.season,
                 c."playerLocation" as location,
                 c."friendshipHearts" as friendship_hearts,
-                -- Calculate days since the memory (for recency scoring)
-                EXTRACT(EPOCH FROM (NOW() - de.timestamp)) / 86400 as days_ago
+                EXTRACT(EPOCH FROM (NOW() - de.timestamp)) / 86400 as days_ago,
+                de.embedding <-> $1::vector as distance
             FROM "DialogueEntry" de
             JOIN "Conversation" c ON de."conversationId" = c.id
-            WHERE c."playerId" = $1 AND c."npcId" = $2
-            ORDER BY de.timestamp DESC
-            LIMIT $3
+            WHERE c."playerId" = $2 AND c."npcId" = $3 AND de.embedding IS NOT NULL
+            ORDER BY distance ASC
+            LIMIT $4
             """
 
-            result = await db.query_raw(query, player_id, npc_id, max_memories * 2)
+            result = await db.query_raw(
+                query, embedding_vector, player_id, npc_id, max_memories
+            )
 
             memories = []
             for row in result:
@@ -227,6 +214,7 @@ class VectorService:
                     "location": row["location"],
                     "friendship_hearts": row["friendship_hearts"],
                     "days_ago": float(row["days_ago"]) if row["days_ago"] else 0,
+                    "distance": float(row["distance"]) if row["distance"] else 1.0,
                     "memory_type": "dialogue",
                 }
                 memories.append(memory)
@@ -247,6 +235,10 @@ class VectorService:
         """Apply human-like memory weighting to memories."""
 
         for memory in memories:
+            # Semantic Similarity Score (from vector distance)
+            distance = memory.get("distance", 1.0)
+            similarity_score = max(0, 10 * (1 - distance))  # Scale to 0-10
+
             # Recency Score (more recent = higher score)
             days_ago = memory.get("days_ago", 0)
             recency_score = max(0, 10 - (days_ago / 7))  # Decreases over weeks
@@ -259,7 +251,11 @@ class VectorService:
 
             # Combined relevance score
             relevance_score = (
-                recency_score * recency_weight
+                similarity_score
+                * (
+                    1 - recency_weight - emotional_weight - importance_weight
+                )  # Weight for similarity
+                + recency_score * recency_weight
                 + emotional_score * emotional_weight
                 + importance_score * importance_weight
             )
@@ -272,44 +268,45 @@ class VectorService:
         return memories
 
     async def _calculate_emotional_impact(self, message: str) -> float:
-        """Calculate emotional impact of a message (0-10)."""
-        # Simple emotional keyword detection
-        # TODO: Use LLM for more sophisticated emotional analysis
-
-        positive_words = [
-            "love",
-            "amazing",
-            "wonderful",
-            "thank",
-            "gift",
-            "beautiful",
-            "perfect",
-            "favorite",
-        ]
-        negative_words = [
-            "hate",
-            "awful",
-            "terrible",
-            "angry",
-            "disappointed",
-            "worst",
-            "stupid",
-            "annoying",
-        ]
+        """
+        Calculate emotional impact of a message (0-10) using a keyword-based heuristic.
+        This is a non-LLM implementation to reduce costs and latency.
+        """
+        if not message or not message.strip():
+            return 5.0  # Neutral
 
         message_lower = message.lower()
 
-        positive_count = sum(1 for word in positive_words if word in message_lower)
-        negative_count = sum(1 for word in negative_words if word in message_lower)
+        # Simple keyword-based check for emotional words
+        positive_words = [
+            "love",
+            "amazing",
+            "happy",
+            "great",
+            "thanks",
+            "beautiful",
+            "wonderful",
+            "excited",
+        ]
+        negative_words = [
+            "hate",
+            "terrible",
+            "sad",
+            "angry",
+            "awful",
+            "cry",
+            "pain",
+            "disappointed",
+        ]
 
-        # Base emotional score
-        emotional_score = 5.0  # Neutral
-        emotional_score += positive_count * 2  # Boost for positive
-        emotional_score += (
-            negative_count * 2
-        )  # Boost for negative (still emotionally significant)
+        intensity = 5.0
+        if any(word in message_lower for word in positive_words):
+            intensity += 2.5
 
-        return min(10.0, emotional_score)
+        if any(word in message_lower for word in negative_words):
+            intensity += 2.5  # Negative emotions are also intense
+
+        return min(10.0, intensity)
 
     async def _calculate_importance(self, memory: Dict[str, Any]) -> float:
         """Calculate importance of a memory (0-10)."""

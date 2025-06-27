@@ -6,5 +6,6 @@ namespace StardewEchoes.Models
   {
     public string npc_message { get; set; } = "";
     public List<string> response_options { get; set; } = new List<string>();
+    public int friendship_change { get; set; } = 0;
   }
 }

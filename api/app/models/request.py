@@ -27,3 +27,4 @@ class DialogueRequest(BaseModel):
 class DialogueResponse(BaseModel):
     npc_message: str
     response_options: List[str]
+    friendship_change: int = 0
