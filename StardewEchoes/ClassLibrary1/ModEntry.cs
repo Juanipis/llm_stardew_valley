@@ -34,6 +34,7 @@ namespace StardewEchoes
             );
 
             helper.Events.Input.ButtonPressed += OnButtonPressed;
+            helper.Events.Display.MenuChanged += OnMenuChanged;
         }
 
         protected override void Dispose(bool disposing)
@@ -57,11 +58,17 @@ namespace StardewEchoes
 
                 if (npc != null && npc.IsVillager)
                 {
+                    this.Helper.Input.Suppress(e.Button);
                     Game1.player.Halt();
                     Game1.player.faceGeneralDirection(npc.getStandingPosition());
                     dialogueHandler?.AbrirDialogoConOpciones(npc);
                 }
             }
+        }
+
+        private void OnMenuChanged(object? sender, MenuChangedEventArgs e)
+        {
+            dialogueHandler?.OnMenuChanged(sender, e);
         }
     }
 }

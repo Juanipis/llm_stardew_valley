@@ -19,6 +19,8 @@ namespace StardewEchoes.Handlers
     private readonly HttpClient httpClient;
     private readonly Dictionary<string, List<ConversationEntry>> conversationHistories;
     private readonly GameContextHandler gameContextHandler;
+    private NPC? npcWithPendingOptions;
+    private DialogueResponse? pendingOptionsResponse;
 
     private const string API_URL = "http://127.0.0.1:8000/generate_dialogue";
 
@@ -43,39 +45,10 @@ namespace StardewEchoes.Handlers
         var dialogueResponse = await GetDialogueFromAPI(npc, playerResponse);
         AddToConversationHistory(npc.Name, "npc", dialogueResponse.npc_message);
 
-        var opciones = new List<Response>();
-        for (int i = 0; i < dialogueResponse.response_options.Count && i < 3; i++)
-        {
-          opciones.Add(new Response($"option_{i}", dialogueResponse.response_options[i]));
-        }
-        opciones.Add(new Response("salir", gameContextHandler.GetLocalizedText("Exit")));
+        this.npcWithPendingOptions = npc;
+        this.pendingOptionsResponse = dialogueResponse;
 
-        Game1.currentLocation.createQuestionDialogue(
-            dialogueResponse.npc_message,
-            opciones.ToArray(),
-            (farmer, key) =>
-            {
-              if (key.StartsWith("option_"))
-              {
-                int optionIndex = int.Parse(key.Substring("option_".Length));
-                string selectedResponse = dialogueResponse.response_options[optionIndex];
-                AddToConversationHistory(npc.Name, "player", selectedResponse);
-
-                Helper.Events.GameLoop.UpdateTicked += ContinueConversation;
-
-                void ContinueConversation(object? s, UpdateTickedEventArgs e)
-                {
-                  Helper.Events.GameLoop.UpdateTicked -= ContinueConversation;
-                  AbrirDialogoConOpciones(npc, selectedResponse);
-                }
-              }
-              else if (key == "salir")
-              {
-                ClearConversationHistory(npc.Name);
-                Monitor.Log($"Conversación con {npc.Name} terminada. Historial limpiado.", LogLevel.Debug);
-              }
-            }
-        );
+        ShowDialogue(npc, dialogueResponse.npc_message);
       }
       catch (Exception ex)
       {
@@ -105,6 +78,68 @@ namespace StardewEchoes.Handlers
             }
         );
       }
+    }
+
+    public void OnMenuChanged(object? sender, MenuChangedEventArgs e)
+    {
+      if (e.OldMenu is DialogueBox dialogueBox &&
+          this.npcWithPendingOptions != null &&
+          dialogueBox.characterDialogue?.speaker == this.npcWithPendingOptions)
+      {
+        if (this.pendingOptionsResponse != null)
+        {
+          var npc = this.npcWithPendingOptions;
+          var response = this.pendingOptionsResponse;
+
+          this.npcWithPendingOptions = null;
+          this.pendingOptionsResponse = null;
+
+          ShowQuestionDialogue(npc, response);
+        }
+      }
+    }
+
+    private void ShowDialogue(NPC npc, string message)
+    {
+      npc.facePlayer(Game1.player);
+      Game1.activeClickableMenu = new DialogueBox(new Dialogue(npc, "StardewEchoes", message));
+    }
+
+    private void ShowQuestionDialogue(NPC npc, DialogueResponse dialogueResponse)
+    {
+      var opciones = new List<Response>();
+      for (int i = 0; i < dialogueResponse.response_options.Count && i < 3; i++)
+      {
+        opciones.Add(new Response($"option_{i}", dialogueResponse.response_options[i]));
+      }
+      opciones.Add(new Response("salir", gameContextHandler.GetLocalizedText("Exit")));
+
+      Game1.currentLocation.createQuestionDialogue(
+          "Choose an option to continue the conversation",
+          opciones.ToArray(),
+          (farmer, key) =>
+          {
+            if (key.StartsWith("option_"))
+            {
+              int optionIndex = int.Parse(key.Substring("option_".Length));
+              string selectedResponse = dialogueResponse.response_options[optionIndex];
+              AddToConversationHistory(npc.Name, "player", selectedResponse);
+
+              Helper.Events.GameLoop.UpdateTicked += ContinueConversation;
+
+              void ContinueConversation(object? s, UpdateTickedEventArgs e)
+              {
+                Helper.Events.GameLoop.UpdateTicked -= ContinueConversation;
+                AbrirDialogoConOpciones(npc, selectedResponse);
+              }
+            }
+            else if (key == "salir")
+            {
+              ClearConversationHistory(npc.Name);
+              Monitor.Log($"Conversación con {npc.Name} terminada. Historial limpiado.", LogLevel.Debug);
+            }
+          }
+      );
     }
 
     private async Task<DialogueResponse> GetDialogueFromAPI(NPC npc, string? playerResponse = null)
