@@ -435,6 +435,7 @@
       let websocket = null;
       let conversationsChart = null;
       let npcPopularityChart = null;
+      let currentOpenConversationId = null;
 
       // Add Chart.js global configuration for better error handling
       if (typeof Chart !== "undefined") {
@@ -594,6 +595,9 @@
             loadRecentConversations();
             loadOverviewStats();
             break;
+          case "new_dialogue":
+            handleNewDialogue(data.data);
+            break;
           case "emotional_state_change":
             showNotification(
               "Emotional State Change",
@@ -608,6 +612,62 @@
               "info"
             );
             break;
+        }
+      }
+
+      function handleNewDialogue(data) {
+        showNotification(
+          "New Message",
+          `New message in conversation between ${data.player_name} and ${data.npc_name}`,
+          "info"
+        );
+
+        // Update the last message on the conversation card
+        const lastMessageDiv = document.getElementById(
+          `conv-last-message-${data.conversation_id}`
+        );
+        if (lastMessageDiv) {
+          lastMessageDiv.innerHTML = `
+            <div class="small">
+                <strong>${data.npc_name}:</strong> 
+                ${data.npc_message.substring(0, 80)}${
+            data.npc_message.length > 80 ? "..." : ""
+          }
+            </div>
+          `;
+        }
+
+        // If the modal for this conversation is open, append the new messages
+        if (data.conversation_id === currentOpenConversationId) {
+          const timeline = document.querySelector(".conversation-timeline");
+          if (timeline) {
+            // Append player message if it exists
+            if (data.player_message) {
+              timeline.appendChild(
+                createDialogueEntryElement(
+                  {
+                    speaker_display_name: data.player_name,
+                    message: data.player_message,
+                    timestamp: new Date().toISOString(),
+                  },
+                  data.player_name
+                )
+              );
+            }
+            // Append NPC message
+            timeline.appendChild(
+              createDialogueEntryElement(
+                {
+                  speaker_display_name: data.npc_name,
+                  message: data.npc_message,
+                  timestamp: new Date().toISOString(),
+                },
+                data.player_name
+              )
+            );
+            // Scroll to bottom
+            timeline.scrollTop = timeline.scrollHeight;
+          }
         }
       }
 
@@ -814,6 +874,7 @@
       function createConversationCard(conv, isActive) {
         const div = document.createElement("div");
         div.className = "col-md-6 mb-3";
+        div.id = `conversation-card-${conv.id}`;
 
         const statusBadge = isActive
           ? '<span class="badge bg-success">Active</span>'
@@ -839,18 +900,20 @@
                         } hearts • 
                         <i class="fas fa-clock me-1"></i>${duration}
                     </p>
-                    ${
-                      conv.last_message
-                        ? `
-                        <div class="small">
-                            <strong>${conv.last_message.speaker}:</strong> 
-                            ${conv.last_message.message.substring(0, 80)}${
-                            conv.last_message.message.length > 80 ? "..." : ""
-                          }
-                        </div>
-                    `
-                        : ""
-                    }
+                    <div id="conv-last-message-${conv.id}">
+                      ${
+                        conv.last_message
+                          ? `
+                          <div class="small">
+                              <strong>${conv.last_message.speaker}:</strong> 
+                              ${conv.last_message.message.substring(0, 80)}${
+                              conv.last_message.message.length > 80 ? "..." : ""
+                            }
+                          </div>
+                      `
+                          : ""
+                      }
+                    </div>
                     <div class="mt-2">
                         <button class="btn btn-sm btn-outline-primary" onclick="viewConversationDetails('${
                           conv.id
@@ -1624,12 +1687,14 @@
             document.getElementById("conversationModal")
           );
           modal.show();
+          currentOpenConversationId = conversationId;
 
           // Clean up modal when hidden
           document
             .getElementById("conversationModal")
             .addEventListener("hidden.bs.modal", function () {
               this.remove();
+              currentOpenConversationId = null;
             });
         } catch (error) {
           console.error("Error loading conversation details:", error);
@@ -1741,6 +1806,26 @@
             </div>
           </div>
         `;
+      }
+
+      function createDialogueEntryElement(entry, playerName) {
+        const div = document.createElement("div");
+        const time = new Date(entry.timestamp);
+        const isPlayer = entry.speaker_display_name === playerName;
+        const alignClass = isPlayer ? "text-end" : "text-start";
+        const bgClass = isPlayer ? "bg-primary text-white" : "bg-light";
+
+        div.className = `mb-2 ${alignClass}`;
+        div.innerHTML = `
+            <div class="d-inline-block p-2 rounded ${bgClass}" style="max-width: 70%;">
+              <div class="small mb-1">
+                <strong>${entry.speaker_display_name}</strong>
+                <span class="opacity-75"> • ${time.toLocaleTimeString()}</span>
+              </div>
+              <div>${entry.message}</div>
+            </div>
+        `;
+        return div;
       }
 
       // Search memories between player and NPC

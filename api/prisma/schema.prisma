@@ -134,8 +134,8 @@ model DialogueEntry {
   timestamp      DateTime     @default(now())
   
   // El embedding vectorial del mensaje para búsqueda semántica
-  // Usando dimensión 384 para el modelo local `all-MiniLM-L6-v2`
-  embedding      Unsupported("vector(384)")?
+  // Usando dimensión 768 para el modelo `text-embedding-ada-002` de OpenAI o similar
+  embedding      Unsupported("vector(768)")?
 }
 
 // NEW: Specific memorable events beyond just dialogue
@@ -163,7 +163,7 @@ model MemoryEpisode {
   lastAccessed    DateTime  @default(now())
   decayRate       Float     @default(1.0) // How fast this memory fades
   
-  embedding       Unsupported("vector(384)")?
+  embedding       Unsupported("vector(768)")?
   createdAt       DateTime  @default(now())
 }
 

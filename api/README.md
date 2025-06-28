@@ -55,7 +55,6 @@ GEMINI_API_KEY="..."
 
 # Recommended models for Google
 DIALOGUE_MODEL="gemini-1.5-flash-latest"
-EMBEDDING_MODEL="text-embedding-004"
 PERSONALITY_MODEL="gemini-1.5-flash-latest"
 EMOTIONAL_MODEL="gemini-1.5-flash-latest"
 MEMORY_CONSOLIDATION_MODEL="gemini-1.5-flash-latest"
@@ -70,7 +69,6 @@ OPENAI_API_KEY="..."
 
 # Recommended models for OpenAI
 DIALOGUE_MODEL="gpt-4o"
-EMBEDDING_MODEL="text-embedding-3-small"
 PERSONALITY_MODEL="gpt-4o-mini"
 EMOTIONAL_MODEL="gpt-4o-mini"
 MEMORY_CONSOLIDATION_MODEL="gpt-4o-mini"
@@ -85,7 +83,6 @@ OLLAMA_API_BASE_URL="http://localhost:11434"
 
 # Make sure you have pulled these models, e.g., `ollama pull llama3`
 DIALOGUE_MODEL="llama3"
-EMBEDDING_MODEL="nomic-embed-text"
 PERSONALITY_MODEL="llama3"
 EMOTIONAL_MODEL="llama3"
 MEMORY_CONSOLIDATION_MODEL="llama3"
@@ -93,7 +90,15 @@ MEMORY_CONSOLIDATION_MODEL="llama3"
 
 The `LLM_PROVIDER` you set will be automatically prepended to the model names when making API calls. For example, if you set `LLM_PROVIDER="openai"` and `DIALOGUE_MODEL="gpt-4o"`, the final model string used will be `openai/gpt-4o`.
 
-### 3. Database
+### 3. Vector Embeddings (Local)
+
+**Important:** This project handles vector embeddings for semantic memory search **locally** using the `sentence-transformers` library. This process does not require any external API calls or environment variables.
+
+- **Model:** `all-mpnet-base-v2`
+- **Vector Dimensions:** 768
+- **Note:** The database schema (`prisma/schema.prisma`) is configured for 768 dimensions. If you change the local model, ensure the new model's dimensions match the schema.
+
+### 4. Database
 
 This project uses Prisma with a PostgreSQL database. Set your database connection string in the `.env` file:
 

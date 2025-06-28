@@ -3,8 +3,6 @@ from typing import List, Dict, Any, Optional
 
 
 from app.db import db
-from app.config import settings
-from app.services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +13,7 @@ try:
 
     class LocalEmbeddingService:
         def __init__(self):
-            self.model_name = "all-MiniLM-L6-v2"
+            self.model_name = "all-mpnet-base-v2"
             self._model = None
             self._device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(
@@ -63,44 +61,28 @@ except ImportError as e:
 
 class VectorService:
     """
-    Enhanced service for generating embeddings and human-like memory search.
+    Service for generating embeddings and performing vector-based memory search.
+    This service now exclusively uses a local sentence-transformer model.
     """
 
     def __init__(self):
         pass
 
     async def generate_embedding(self, text: str) -> List[float]:
-        """Generates an embedding for a text using the configured LLM provider."""
+        """Generates an embedding for a text using the local embedding service."""
         try:
-            # Try local embedding service first
             if local_embedding_service:
-                logger.debug(f"Generating embedding locally for text: {text[:100]}...")
                 embedding = local_embedding_service.generate_embedding(text)
                 if embedding:
-                    logger.debug(
-                        f"Generated local embedding with {len(embedding)} dimensions"
-                    )
                     return embedding
 
-            # Fallback to configured LLM provider via LiteLLM
-            response = await llm_service.aembedding(
-                model=settings.embedding_model, input_texts=[text]
+            logger.warning(
+                "Local embedding service not available or failed to generate embedding."
             )
-
-            if response and response.data:
-                embedding = response.data[0]["embedding"]
-                logger.debug(
-                    f"Generated LiteLLM embedding with {len(embedding)} dimensions"
-                )
-                return embedding
-            else:
-                logger.warning(
-                    f"No embedding returned from LiteLLM for model {settings.embedding_model}"
-                )
-                return []
+            return []
 
         except Exception as e:
-            logger.error(f"Error generating embedding with LiteLLM: {e}")
+            logger.error(f"Error generating embedding: {e}")
             return []
 
     async def search_relevant_memories(
