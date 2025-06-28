@@ -6,6 +6,7 @@ from ..services.memory_service import memory_service
 from ..services.memory.emotional_state_service import emotional_state_service
 from ..services.memory.analysis_service import analysis_service
 from ..services.llm_service import llm_service
+from ..websockets.realtime import realtime_monitor
 from ..db import db
 
 router = APIRouter()
@@ -42,9 +43,15 @@ async def generate_dialogue(
             emotional_context = ""
             conversation_id = ""
         else:
-            # 2. Get NPC's current emotional state
-            logger.debug("Retrieving emotional state for NPC %s", npc_id)
-            emotional_state = await emotional_state_service.get_emotional_state(npc_id)
+            # 2. Get NPC's current emotional state towards this player
+            logger.debug(
+                "Retrieving emotional state for NPC %s towards player %s",
+                npc_id,
+                player_id,
+            )
+            emotional_state = await emotional_state_service.get_emotional_state(
+                npc_id, player_id
+            )
             emotional_context = (
                 emotional_state_service.generate_mood_context_for_dialogue(
                     emotional_state
@@ -64,7 +71,11 @@ async def generate_dialogue(
 
             # 🎭 GENERAR INSIGHT DE RELACIÓN
             relationship_insight = await memory_service.generate_relationship_insight(
-                personality_profile, request.player_name, request.npc_name, npc_id
+                personality_profile,
+                request.player_name,
+                request.npc_name,
+                npc_id,
+                player_id,
             )
             logger.info("=== RELATIONSHIP INSIGHT ===")
             for line in relationship_insight.strip().split("\n"):
@@ -278,8 +289,19 @@ OPTION_3: [Provocative/teasing player response]"""
                     "Saved player response: %s", request.player_response[:50] + "..."
                 )
 
-                # The emotional state is no longer updated here, but at the end of the conversation.
-                # This saves an LLM call on every turn.
+                # Send real-time notification for new dialogue
+                await realtime_monitor.notify_new_dialogue(
+                    {
+                        "conversation_id": conversation_id,
+                        "player_name": request.player_name,
+                        "npc_name": request.npc_name,
+                        "player_message": request.player_response,
+                        "npc_message": npc_message,
+                        "location": request.player_location,
+                        "friendship_hearts": request.friendship_hearts,
+                    }
+                )
+
         else:
             logger.warning("No conversation ID available, not saving to memory")
 

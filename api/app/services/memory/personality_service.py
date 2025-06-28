@@ -64,6 +64,7 @@ class PersonalityService:
         player_name: str,
         npc_name: str,
         npc_id: str = None,
+        player_id: str = None,
     ) -> str:
         """
         Generate relationship insight including current emotional state.
@@ -78,7 +79,7 @@ class PersonalityService:
                 )
 
                 emotional_state = await emotional_state_service.get_emotional_state(
-                    npc_id
+                    npc_id, player_id
                 )
                 current_mood = emotional_state.get("current_mood", "NEUTRAL")
                 mood_intensity = emotional_state.get("mood_intensity", 5.0)

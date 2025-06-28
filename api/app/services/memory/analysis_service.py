@@ -10,6 +10,14 @@ from app.services.memory.vector_service import vector_service
 from app.services.memory.personality_service import personality_service
 from app.services.memory.emotional_state_service import emotional_state_service, Mood
 
+# Import realtime monitor for WebSocket notifications
+try:
+    from app.websockets.realtime import realtime_monitor
+
+    REALTIME_AVAILABLE = True
+except ImportError:
+    REALTIME_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -260,6 +268,18 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
     ):
         """Updates the player personality profile in the database."""
         try:
+            # Get old profile for comparison if realtime notifications are enabled
+            old_profile = None
+            if REALTIME_AVAILABLE:
+                try:
+                    old_profile = await personality_service.get_personality_profile(
+                        player_id, npc_id
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error getting old personality profile for notification: {e}"
+                    )
+
             db_update_data = {
                 "summary": update_data.get("new_summary"),
                 "trust": float(update_data.get("new_trust")),
@@ -283,6 +303,26 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
             logger.info(
                 f"Updated personality profile for player {player_id} with NPC {npc_id}"
             )
+
+            # Send real-time notification for personality update
+            if REALTIME_AVAILABLE and old_profile:
+                try:
+                    # Get player and NPC names
+                    player = await db.player.find_unique(where={"id": player_id})
+                    npc = await db.npc.find_unique(where={"id": npc_id})
+
+                    if player and npc:
+                        # Get new profile
+                        new_profile = await personality_service.get_personality_profile(
+                            player_id, npc_id
+                        )
+
+                        await realtime_monitor.notify_personality_update(
+                            player.name, npc.name, old_profile, new_profile
+                        )
+                except Exception as e:
+                    logger.error(f"Error sending personality update notification: {e}")
+
         except Exception as e:
             logger.error(f"Error updating personality profile in DB: {e}")
 
@@ -291,6 +331,18 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
     ):
         """Updates the NPC's emotional state in the database."""
         try:
+            # Get old emotional state for comparison if realtime notifications are enabled
+            old_emotional_state = None
+            if REALTIME_AVAILABLE:
+                try:
+                    old_emotional_state = (
+                        await emotional_state_service.get_emotional_state(npc_id)
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error getting old emotional state for notification: {e}"
+                    )
+
             db_update_data = {
                 "currentMood": update_data.get("new_mood"),
                 "moodIntensity": float(update_data.get("new_mood_intensity")),
@@ -320,6 +372,27 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
                 },
             )
             logger.info(f"Updated emotional state for NPC {npc_id}")
+
+            # Send real-time notification for emotional state change
+            if REALTIME_AVAILABLE and old_emotional_state:
+                try:
+                    # Get NPC name
+                    npc = await db.npc.find_unique(where={"id": npc_id})
+
+                    if npc:
+                        # Get new emotional state
+                        new_emotional_state = (
+                            await emotional_state_service.get_emotional_state(npc_id)
+                        )
+
+                        await realtime_monitor.notify_emotional_state_change(
+                            npc.name, old_emotional_state, new_emotional_state
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error sending emotional state change notification: {e}"
+                    )
+
         except Exception as e:
             logger.error(f"Error updating emotional state in DB: {e}")
 

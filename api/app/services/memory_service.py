@@ -77,10 +77,11 @@ class MemoryService:
         player_name: str,
         npc_name: str,
         npc_id: str = None,
+        player_id: str = None,
     ) -> str:
         """Delega a personality_service con información del estado emocional."""
         return await personality_service.generate_relationship_insight(
-            personality_profile, player_name, npc_name, npc_id
+            personality_profile, player_name, npc_name, npc_id, player_id
         )
 
 

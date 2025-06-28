@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome Icons -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+      .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+      .status-online {
+        background-color: #28a745;
+      }
+      .status-offline {
+        background-color: #6c757d;
+      }
+
+      .conversation-card {
+        transition: transform 0.2s ease-in-out;
+        border-left: 4px solid #667eea;
+      }
+      .conversation-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      }
+
+      .realtime-indicator {
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .mood-indicator {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: 500;
+      }
+
+      .mood-happy {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .mood-neutral {
+        background-color: #e2e3e5;
+        color: #6c757d;
+      }
+      .mood-sad {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .mood-angry {
+        background-color: #f5c6cb;
+        color: #721c24;
+      }
+      .mood-excited {
+        background-color: #fff3cd;
+        color: #856404;
+      }
+
+      /* Radar Chart Specific Styles */
+      #personalityRadarChart {
+        max-height: 300px !important;
+        max-width: 100% !important;
+      }
+
+      .radar-chart-container {
+        position: relative;
+        height: 300px !important;
+        width: 100% !important;
+        overflow: hidden;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body class="bg-light">
+    <div class="container-fluid">
+      <div class="row">
+        <!-- Sidebar -->
+        <div
+          class="col-md-3 bg-white border-end"
+          style="height: 100vh; overflow-y: auto"
+        >
+          <div class="p-4">
+            <h4 class="text-primary mb-4">
+              <i class="fas fa-gamepad me-2"></i>
+              StardewEchoes Monitor
+            </h4>
+
+            <!-- Connection Status -->
+            <div class="mb-4">
+              <h6 class="text-muted mb-2">Connection Status</h6>
+              <div id="connection-status" class="text-muted">
+                <span class="status-indicator status-offline"></span>
+                Connecting...
+              </div>
+            </div>
+
+            <!-- Real-time Stats -->
+            <div class="mb-4">
+              <h6 class="text-muted mb-3">Real-time Overview</h6>
+              <div class="row g-2">
+                <div class="col-6">
+                  <div class="card border-0 bg-light text-center p-2">
+                    <div
+                      class="h5 mb-0 text-primary"
+                      id="stat-active-conversations"
+                    >
+                      0
+                    </div>
+                    <small class="text-muted">Active</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="card border-0 bg-light text-center p-2">
+                    <div
+                      class="h5 mb-0 text-success"
+                      id="stat-conversations-today"
+                    >
+                      0
+                    </div>
+                    <small class="text-muted">Today</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="card border-0 bg-light text-center p-2">
+                    <div class="h5 mb-0 text-info" id="stat-total-players">
+                      0
+                    </div>
+                    <small class="text-muted">Players</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="card border-0 bg-light text-center p-2">
+                    <div class="h5 mb-0 text-warning" id="stat-total-npcs">
+                      0
+                    </div>
+                    <small class="text-muted">NPCs</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="mb-4">
+              <h6 class="text-muted mb-2">Navigation</h6>
+              <div class="list-group list-group-flush">
+                <a
+                  href="#dashboard"
+                  class="list-group-item list-group-item-action active"
+                  data-tab="dashboard"
+                >
+                  <i class="fas fa-chart-line me-2"></i>Dashboard
+                </a>
+                <a
+                  href="#conversations"
+                  class="list-group-item list-group-item-action"
+                  data-tab="conversations"
+                >
+                  <i class="fas fa-comments me-2"></i>Conversations
+                </a>
+                <a
+                  href="#relationships"
+                  class="list-group-item list-group-item-action"
+                  data-tab="relationships"
+                >
+                  <i class="fas fa-heart me-2"></i>Relationships
+                </a>
+                <a
+                  href="#emotional-states"
+                  class="list-group-item list-group-item-action"
+                  data-tab="emotional-states"
+                >
+                  <i class="fas fa-smile me-2"></i>Emotional States
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9" style="height: 100vh; overflow-y: auto">
+          <div class="p-4">
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-content">
+              <div
+                class="d-flex justify-content-between align-items-center mb-4"
+              >
+                <h2 class="mb-0">
+                  <i class="fas fa-chart-line me-2 text-primary"></i>
+                  Real-time Dashboard
+                </h2>
+                <div class="realtime-indicator">
+                  <span class="badge bg-success">
+                    <i class="fas fa-circle me-1"></i>Live
+                  </span>
+                </div>
+              </div>
+
+              <!-- Key Metrics Cards -->
+              <div class="row mb-4">
+                <div class="col-md-3">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-body bg-primary text-white">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4 class="mb-0" id="metric-total-conversations">
+                            0
+                          </h4>
+                          <small class="opacity-75">Total Conversations</small>
+                        </div>
+                        <i class="fas fa-comments fa-2x opacity-75"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-body bg-success text-white">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4 class="mb-0" id="metric-total-messages">0</h4>
+                          <small class="opacity-75">Total Messages</small>
+                        </div>
+                        <i class="fas fa-comment fa-2x opacity-75"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-body bg-info text-white">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4 class="mb-0" id="metric-active-now">0</h4>
+                          <small class="opacity-75">Active Now</small>
+                        </div>
+                        <i class="fas fa-users fa-2x opacity-75"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-body bg-warning text-white">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4 class="mb-0" id="metric-avg-duration">0min</h4>
+                          <small class="opacity-75">Avg Duration</small>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-75"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Charts Row -->
+              <div class="row mb-4">
+                <div class="col-md-8">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                      <h6 class="mb-0">
+                        <i class="fas fa-chart-area me-2"></i>
+                        Conversations Over Time
+                      </h6>
+                    </div>
+                    <div class="card-body">
+                      <canvas id="conversationsChart" height="100"></canvas>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                      <h6 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        NPC Popularity
+                      </h6>
+                    </div>
+                    <div class="card-body">
+                      <canvas id="npcPopularityChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Conversations Tab -->
+            <div
+              id="tab-conversations"
+              class="tab-content"
+              style="display: none"
+            >
+              <div
+                class="d-flex justify-content-between align-items-center mb-4"
+              >
+                <h2 class="mb-0">
+                  <i class="fas fa-comments me-2 text-primary"></i>
+                  Live Conversations
+                </h2>
+                <button
+                  class="btn btn-primary btn-sm"
+                  id="refresh-conversations"
+                >
+                  <i class="fas fa-refresh me-1"></i>Refresh
+                </button>
+              </div>
+
+              <!-- Active Conversations -->
+              <div class="mb-4">
+                <h5 class="text-muted mb-3">Active Conversations</h5>
+                <div id="active-conversations-list" class="row">
+                  <!-- Active conversations will be populated here -->
+                </div>
+              </div>
+
+              <!-- Recent Conversations -->
+              <div class="mb-4">
+                <h5 class="text-muted mb-3">Recently Completed</h5>
+                <div id="recent-conversations-list" class="row">
+                  <!-- Recent conversations will be populated here -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Relationships Tab -->
+            <div
+              id="tab-relationships"
+              class="tab-content"
+              style="display: none"
+            >
+              <div
+                class="d-flex justify-content-between align-items-center mb-4"
+              >
+                <h2 class="mb-0">
+                  <i class="fas fa-heart me-2 text-primary"></i>
+                  Relationship Analysis
+                </h2>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="player-select" class="form-label"
+                      >Select Player</label
+                    >
+                    <select class="form-select" id="player-select">
+                      <option value="">Choose a player...</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label for="npc-select" class="form-label"
+                      >Select NPC</label
+                    >
+                    <select class="form-select" id="npc-select">
+                      <option value="">Choose an NPC...</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div id="relationship-details" class="mt-4">
+                <!-- Relationship details will be populated here -->
+              </div>
+            </div>
+
+            <!-- Emotional States Tab -->
+            <div
+              id="tab-emotional-states"
+              class="tab-content"
+              style="display: none"
+            >
+              <div
+                class="d-flex justify-content-between align-items-center mb-4"
+              >
+                <h2 class="mb-0">
+                  <i class="fas fa-smile me-2 text-primary"></i>
+                  NPC Emotional States
+                </h2>
+              </div>
+
+              <div id="emotional-states-grid" class="row">
+                <!-- Emotional states will be populated here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-time notifications toast container -->
+    <div
+      class="toast-container position-fixed bottom-0 end-0 p-3"
+      id="toast-container"
+    ></div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      // Global variables
+      let websocket = null;
+      let conversationsChart = null;
+      let npcPopularityChart = null;
+
+      // Add Chart.js global configuration for better error handling
+      if (typeof Chart !== "undefined") {
+        Chart.defaults.responsive = true;
+        Chart.defaults.maintainAspectRatio = false;
+
+        // Add global error handler for Chart.js
+        Chart.register({
+          id: "errorHandler",
+          beforeInit: function (chart) {
+            const originalUpdate = chart.update;
+            chart.update = function () {
+              try {
+                return originalUpdate.apply(this, arguments);
+              } catch (error) {
+                console.error("Chart update error:", error);
+              }
+            };
+          },
+        });
+      }
+
+      // Initialize the application
+      document.addEventListener("DOMContentLoaded", function () {
+        console.log("DOM loaded, initializing StardewEchoes dashboard...");
+
+        try {
+          // Check if required libraries are loaded
+          if (typeof Chart === "undefined") {
+            console.error("Chart.js not loaded!");
+            showNotification(
+              "Error",
+              "Chart.js library failed to load",
+              "danger"
+            );
+          }
+
+          if (typeof bootstrap === "undefined") {
+            console.error("Bootstrap not loaded!");
+            showNotification(
+              "Error",
+              "Bootstrap library failed to load",
+              "danger"
+            );
+          }
+
+          // Initialize components with error handling
+          initWebSocket();
+          initTabs();
+          initCharts();
+          loadInitialData();
+
+          // Set up periodic data refresh
+          setInterval(loadOverviewStats, 30000); // Every 30 seconds
+
+          console.log("Dashboard initialization complete");
+        } catch (error) {
+          console.error("Error during dashboard initialization:", error);
+          showNotification(
+            "Error",
+            "Failed to initialize dashboard: " + error.message,
+            "danger"
+          );
+        }
+      });
+
+      // WebSocket initialization with improved error handling
+      function initWebSocket() {
+        try {
+          const protocol =
+            window.location.protocol === "https:" ? "wss:" : "ws:";
+          const wsUrl = `${protocol}//${window.location.host}/ws/monitoring?connection_type=dashboard`;
+
+          console.log("Connecting to WebSocket:", wsUrl);
+
+          websocket = new WebSocket(wsUrl);
+
+          websocket.onopen = function (event) {
+            console.log("WebSocket connected successfully");
+            updateConnectionStatus("online");
+            showNotification(
+              "Connected",
+              "Real-time updates are now active",
+              "success"
+            );
+          };
+
+          websocket.onmessage = function (event) {
+            try {
+              const data = JSON.parse(event.data);
+              handleRealtimeUpdate(data);
+            } catch (error) {
+              console.error("Error parsing WebSocket message:", error);
+            }
+          };
+
+          websocket.onclose = function (event) {
+            console.log(
+              "WebSocket disconnected. Code:",
+              event.code,
+              "Reason:",
+              event.reason
+            );
+            updateConnectionStatus("offline");
+
+            // Only attempt to reconnect if it wasn't a manual close
+            if (event.code !== 1000) {
+              console.log("Attempting to reconnect in 5 seconds...");
+              setTimeout(initWebSocket, 5000);
+            }
+          };
+
+          websocket.onerror = function (error) {
+            console.error("WebSocket error:", error);
+            updateConnectionStatus("offline");
+            showNotification(
+              "Connection Error",
+              "WebSocket connection failed",
+              "warning"
+            );
+          };
+        } catch (error) {
+          console.error("Error initializing WebSocket:", error);
+          updateConnectionStatus("offline");
+          showNotification(
+            "Error",
+            "Failed to initialize WebSocket: " + error.message,
+            "danger"
+          );
+        }
+      }
+
+      // Handle real-time updates
+      function handleRealtimeUpdate(data) {
+        console.log("Real-time update:", data);
+
+        switch (data.type) {
+          case "connection_confirmed":
+            updateConnectionStatus("online");
+            break;
+          case "new_conversation":
+            showNotification(
+              "New Conversation",
+              `${data.data.player_name} started talking to ${data.data.npc_name}`,
+              "info"
+            );
+            loadActiveConversations();
+            loadOverviewStats();
+            break;
+          case "conversation_ended":
+            showNotification(
+              "Conversation Ended",
+              `${data.data.player_name} finished talking to ${data.data.npc_name}`,
+              "success"
+            );
+            loadActiveConversations();
+            loadRecentConversations();
+            loadOverviewStats();
+            break;
+          case "emotional_state_change":
+            showNotification(
+              "Emotional State Change",
+              `${data.data.npc_name} is now feeling ${data.data.new_state.current_mood}`,
+              "warning"
+            );
+            break;
+          case "personality_update":
+            showNotification(
+              "Relationship Update",
+              `${data.data.npc_name}'s perception of ${data.data.player_name} has changed`,
+              "info"
+            );
+            break;
+        }
+      }
+
+      // Tab navigation
+      function initTabs() {
+        document.querySelectorAll("[data-tab]").forEach((link) => {
+          link.addEventListener("click", function (e) {
+            e.preventDefault();
+
+            // Update active tab
+            document
+              .querySelectorAll("[data-tab]")
+              .forEach((l) => l.classList.remove("active"));
+            this.classList.add("active");
+
+            // Show/hide content
+            document.querySelectorAll(".tab-content").forEach((content) => {
+              content.style.display = "none";
+            });
+            document.getElementById(`tab-${this.dataset.tab}`).style.display =
+              "block";
+
+            // Load tab-specific data
+            loadTabData(this.dataset.tab);
+          });
+        });
+      }
+
+      // Load data for specific tab
+      function loadTabData(tab) {
+        switch (tab) {
+          case "dashboard":
+            loadOverviewStats();
+            break;
+          case "conversations":
+            loadActiveConversations();
+            loadRecentConversations();
+            break;
+          case "relationships":
+            loadPlayersAndNPCs();
+            break;
+          case "emotional-states":
+            loadEmotionalStates();
+            break;
+        }
+      }
+
+      // Initialize charts
+      function initCharts() {
+        // Conversations over time chart
+        const ctx1 = document
+          .getElementById("conversationsChart")
+          .getContext("2d");
+        conversationsChart = new Chart(ctx1, {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: "Conversations",
+                data: [],
+                borderColor: "rgba(102, 126, 234, 1)",
+                backgroundColor: "rgba(102, 126, 234, 0.1)",
+                tension: 0.4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+
+        // NPC popularity chart
+        const ctx2 = document
+          .getElementById("npcPopularityChart")
+          .getContext("2d");
+        npcPopularityChart = new Chart(ctx2, {
+          type: "doughnut",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                data: [],
+                backgroundColor: [
+                  "#FF6384",
+                  "#36A2EB",
+                  "#FFCE56",
+                  "#4BC0C0",
+                  "#9966FF",
+                  "#FF9F40",
+                ],
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: "bottom",
+              },
+            },
+          },
+        });
+      }
+
+      // Load initial data
+      function loadInitialData() {
+        loadOverviewStats();
+        loadActiveConversations();
+        loadRecentConversations();
+      }
+
+      // API calls
+      async function loadOverviewStats() {
+        try {
+          const response = await fetch("/monitoring/api/stats/overview");
+          const data = await response.json();
+
+          // Update sidebar stats
+          document.getElementById("stat-active-conversations").textContent =
+            data.active_conversations;
+          document.getElementById("stat-conversations-today").textContent =
+            data.conversations_today;
+          document.getElementById("stat-total-players").textContent =
+            data.total_players;
+          document.getElementById("stat-total-npcs").textContent =
+            data.total_npcs;
+
+          // Update main metrics
+          document.getElementById("metric-total-conversations").textContent =
+            data.total_conversations;
+          document.getElementById("metric-total-messages").textContent =
+            data.total_dialogue_entries;
+          document.getElementById("metric-active-now").textContent =
+            data.active_conversations;
+        } catch (error) {
+          console.error("Error loading overview stats:", error);
+        }
+      }
+
+      async function loadActiveConversations() {
+        try {
+          const response = await fetch("/monitoring/api/active_conversations");
+          const data = await response.json();
+
+          const container = document.getElementById(
+            "active-conversations-list"
+          );
+          container.innerHTML = "";
+
+          if (data.active_conversations.length === 0) {
+            container.innerHTML =
+              '<div class="col-12"><div class="alert alert-info">No active conversations</div></div>';
+            return;
+          }
+
+          data.active_conversations.forEach((conv) => {
+            const card = createConversationCard(conv, true);
+            container.appendChild(card);
+          });
+        } catch (error) {
+          console.error("Error loading active conversations:", error);
+        }
+      }
+
+      async function loadRecentConversations() {
+        try {
+          const response = await fetch("/monitoring/api/recent_conversations");
+          const data = await response.json();
+
+          const container = document.getElementById(
+            "recent-conversations-list"
+          );
+          container.innerHTML = "";
+
+          if (data.recent_conversations.length === 0) {
+            container.innerHTML =
+              '<div class="col-12"><div class="alert alert-info">No recent conversations</div></div>';
+            return;
+          }
+
+          data.recent_conversations.forEach((conv) => {
+            const card = createConversationCard(conv, false);
+            container.appendChild(card);
+          });
+        } catch (error) {
+          console.error("Error loading recent conversations:", error);
+        }
+      }
+
+      // Utility functions
+      function createConversationCard(conv, isActive) {
+        const div = document.createElement("div");
+        div.className = "col-md-6 mb-3";
+
+        const statusBadge = isActive
+          ? '<span class="badge bg-success">Active</span>'
+          : '<span class="badge bg-secondary">Completed</span>';
+
+        const duration = `${Math.round(conv.duration_minutes)}m`;
+
+        div.innerHTML = `
+            <div class="card conversation-card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="mb-0">${conv.player_name} & ${
+          conv.npc_name
+        }</h6>
+                        ${statusBadge}
+                    </div>
+                    <p class="text-muted small mb-2">
+                        <i class="fas fa-map-marker-alt me-1"></i>${
+                          conv.location || "Unknown"
+                        } • 
+                        <i class="fas fa-heart me-1"></i>${
+                          conv.friendship_hearts || 0
+                        } hearts • 
+                        <i class="fas fa-clock me-1"></i>${duration}
+                    </p>
+                    ${
+                      conv.last_message
+                        ? `
+                        <div class="small">
+                            <strong>${conv.last_message.speaker}:</strong> 
+                            ${conv.last_message.message.substring(0, 80)}${
+                            conv.last_message.message.length > 80 ? "..." : ""
+                          }
+                        </div>
+                    `
+                        : ""
+                    }
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewConversationDetails('${
+                          conv.id
+                        }')">
+                            <i class="fas fa-eye me-1"></i>View Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        return div;
+      }
+
+      function updateConnectionStatus(status) {
+        const statusEl = document.getElementById("connection-status");
+
+        switch (status) {
+          case "online":
+            statusEl.innerHTML =
+              '<span class="status-indicator status-online"></span>Connected';
+            break;
+          case "offline":
+            statusEl.innerHTML =
+              '<span class="status-indicator status-offline"></span>Disconnected';
+            break;
+        }
+      }
+
+      function showNotification(title, message, type = "info") {
+        const toast = document.createElement("div");
+        toast.className = `toast align-items-center text-white bg-${
+          type === "info" ? "primary" : type
+        } border-0`;
+        toast.setAttribute("role", "alert");
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <strong>${title}</strong><br>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+
+        document.getElementById("toast-container").appendChild(toast);
+
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+
+        // Remove toast element after it's hidden
+        toast.addEventListener("hidden.bs.toast", () => {
+          toast.remove();
+        });
+      }
+
+      function viewConversationDetails(conversationId) {
+        console.log("Viewing conversation details:", conversationId);
+        openConversationModal(conversationId);
+      }
+
+      // Load players and NPCs for relationship analysis
+      async function loadPlayersAndNPCs() {
+        try {
+          // Load players
+          const playersResponse = await fetch("/monitoring/api/players");
+          const playersData = await playersResponse.json();
+
+          const playerSelect = document.getElementById("player-select");
+          playerSelect.innerHTML =
+            '<option value="">Choose a player...</option>';
+
+          playersData.players.forEach((player) => {
+            const option = document.createElement("option");
+            option.value = player.name;
+            option.textContent = player.name;
+            playerSelect.appendChild(option);
+          });
+
+          // Load NPCs
+          const npcsResponse = await fetch("/monitoring/api/npcs");
+          const npcsData = await npcsResponse.json();
+
+          const npcSelect = document.getElementById("npc-select");
+          npcSelect.innerHTML = '<option value="">Choose an NPC...</option>';
+
+          npcsData.npcs.forEach((npc) => {
+            const option = document.createElement("option");
+            option.value = npc.name;
+            option.textContent = npc.name;
+            npcSelect.appendChild(option);
+          });
+
+          // Add event listeners for relationship loading
+          playerSelect.addEventListener("change", loadRelationshipDetails);
+          npcSelect.addEventListener("change", loadRelationshipDetails);
+        } catch (error) {
+          console.error("Error loading players and NPCs:", error);
+          showNotification(
+            "Error",
+            "Failed to load players and NPCs",
+            "danger"
+          );
+        }
+      }
+
+      // Load relationship details when both player and NPC are selected
+      async function loadRelationshipDetails() {
+        // Clear any existing radar chart before loading new data
+        if (window.personalityRadarChart instanceof Chart) {
+          window.personalityRadarChart.destroy();
+          window.personalityRadarChart = null;
+        }
+
+        const playerName = document.getElementById("player-select").value;
+        const npcName = document.getElementById("npc-select").value;
+        const detailsContainer = document.getElementById(
+          "relationship-details"
+        );
+
+        if (!playerName || !npcName) {
+          detailsContainer.innerHTML = "";
+          // Clear any existing radar chart
+          if (window.personalityRadarChart instanceof Chart) {
+            window.personalityRadarChart.destroy();
+            window.personalityRadarChart = null;
+          }
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `/monitoring/api/player/${playerName}/relationships`
+          );
+          const data = await response.json();
+
+          const relationship = data.relationships.find(
+            (rel) => rel.npc_name === npcName
+          );
+
+          if (!relationship) {
+            detailsContainer.innerHTML = `
+              <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                No relationship data found between ${playerName} and ${npcName}
+              </div>
+            `;
+            return;
+          }
+
+          // Render relationship details with charts
+          detailsContainer.innerHTML = createRelationshipDetailsHTML(
+            playerName,
+            npcName,
+            relationship
+          );
+
+          // Initialize personality radar chart after DOM is ready
+          requestAnimationFrame(() => {
+            console.log(
+              "Initializing personality radar chart with data:",
+              relationship.personality
+            );
+            initPersonalityRadarChart(relationship.personality);
+          });
+
+          // Load conversation history
+          loadRelationshipHistory(playerName, npcName);
+        } catch (error) {
+          console.error("Error loading relationship details:", error);
+          detailsContainer.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="fas fa-exclamation-circle me-2"></i>
+              Error loading relationship data: ${error.message}
+            </div>
+          `;
+        }
+      }
+
+      // Create HTML for relationship details
+      function createRelationshipDetailsHTML(
+        playerName,
+        npcName,
+        relationship
+      ) {
+        const moodEmojis = {
+          VERY_HAPPY: "😄",
+          HAPPY: "😊",
+          CONTENT: "😌",
+          NEUTRAL: "😐",
+          WORRIED: "😟",
+          SAD: "😢",
+          ANGRY: "😠",
+          EXCITED: "🤩",
+          ROMANTIC: "🥰",
+          NOSTALGIC: "🤔",
+          STRESSED: "😰",
+        };
+
+        const moodEmoji =
+          moodEmojis[relationship.emotional_state.current_mood] || "😐";
+
+        return `
+          <div class="row">
+            <div class="col-md-8">
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                  <h5 class="mb-0">
+                    <i class="fas fa-heart me-2"></i>
+                    ${npcName}'s Perception of ${playerName}
+                  </h5>
+                  <small class="text-light opacity-75">
+                    ⚠️ DATOS DE PERCEPCIÓN: Cómo el NPC ve específicamente a este jugador
+                  </small>
+                </div>
+                <div class="card-body">
+                  <div class="row mb-4">
+                    <div class="col-md-6">
+                      <h6 class="text-muted mb-3">Personality Summary</h6>
+                      <p class="fst-italic">"${
+                        relationship.personality.summary
+                      }"</p>
+                      
+                      <h6 class="text-muted mb-3 mt-4">Current Emotional State</h6>
+                      <p>
+                        <span class="fs-4 me-2">${moodEmoji}</span>
+                        <strong>${relationship.emotional_state.current_mood.replace(
+                          "_",
+                          " "
+                        )}</strong>
+                        <br>
+                        <small class="text-muted">Intensity: ${
+                          relationship.emotional_state.mood_intensity
+                        }/10</small>
+                      </p>
+                    </div>
+                    <div class="col-md-6">
+                      <h6 class="text-muted mb-3">Personality Metrics</h6>
+                      <div class="personality-bars">
+                        ${createPersonalityBar(
+                          "Friendliness",
+                          relationship.personality.friendliness
+                        )}
+                        ${createPersonalityBar(
+                          "Trust",
+                          relationship.personality.trust
+                        )}
+                        ${createPersonalityBar(
+                          "Affection",
+                          relationship.personality.affection
+                        )}
+                        ${createPersonalityBar(
+                          "Romantic Interest",
+                          relationship.personality.romantic_interest
+                        )}
+                        ${createPersonalityBar(
+                          "Annoyance",
+                          relationship.personality.annoyance,
+                          true
+                        )}
+                        ${createPersonalityBar(
+                          "Admiration",
+                          relationship.personality.admiration
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="row">
+                    <div class="col-12">
+                      <h6 class="text-muted mb-3">Personality Radar Chart</h6>
+                      <div class="radar-chart-container">
+                        <canvas id="personalityRadarChart"></canvas>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-info text-white">
+                  <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Last Interaction
+                  </h6>
+                </div>
+                <div class="card-body">
+                  ${
+                    relationship.last_interaction.date
+                      ? `
+                    <p><strong>Date:</strong> ${new Date(
+                      relationship.last_interaction.date
+                    ).toLocaleDateString()}</p>
+                    <p><strong>Location:</strong> ${
+                      relationship.last_interaction.location || "Unknown"
+                    }</p>
+                    <p><strong>Friendship:</strong> ${
+                      relationship.last_interaction.friendship_hearts || 0
+                    } hearts</p>
+                  `
+                      : '<p class="text-muted">No interactions yet</p>'
+                  }
+                </div>
+              </div>
+              
+              <div class="card border-0 shadow-sm mt-3">
+                <div class="card-header bg-success text-white">
+                  <h6 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Actions
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <button class="btn btn-primary btn-sm w-100 mb-2" onclick="loadConversationHistory('${playerName}', '${npcName}')">
+                    <i class="fas fa-comments me-1"></i>View Conversation History
+                  </button>
+                  <button class="btn btn-outline-info btn-sm w-100" onclick="searchMemories('${playerName}', '${npcName}')">
+                    <i class="fas fa-search me-1"></i>Search Memories
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="conversation-history-section" class="mt-4" style="display: none;">
+            <!-- Conversation history will be loaded here -->
+          </div>
+        `;
+      }
+
+      // Create personality progress bars
+      function createPersonalityBar(label, value, isNegative = false) {
+        const percentage = (value / 10) * 100;
+        const colorClass = isNegative
+          ? "bg-danger"
+          : value >= 7
+          ? "bg-success"
+          : value >= 4
+          ? "bg-warning"
+          : "bg-danger";
+
+        return `
+          <div class="mb-2">
+            <div class="d-flex justify-content-between">
+              <small>${label}</small>
+              <small>${value.toFixed(1)}/10</small>
+            </div>
+            <div class="progress" style="height: 8px;">
+              <div class="progress-bar ${colorClass}" style="width: ${percentage}%"></div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Initialize personality radar chart with proper error handling
+      function initPersonalityRadarChart(personality) {
+        try {
+          // Check if container exists first
+          const container = document.querySelector(".radar-chart-container");
+          if (!container) {
+            console.error("Personality radar chart container not found");
+            return;
+          }
+
+          // Clear the container and recreate canvas
+          container.innerHTML = '<canvas id="personalityRadarChart"></canvas>';
+
+          const canvas = document.getElementById("personalityRadarChart");
+          if (!canvas) {
+            console.error(
+              "Personality radar chart canvas could not be created"
+            );
+            return;
+          }
+
+          // Destroy existing chart if it exists
+          if (window.personalityRadarChart instanceof Chart) {
+            window.personalityRadarChart.destroy();
+            window.personalityRadarChart = null;
+          }
+
+          // Validate personality data
+          if (!personality || typeof personality !== "object") {
+            console.error("Invalid personality data provided");
+            container.innerHTML =
+              '<div class="alert alert-warning">No personality data available</div>';
+            return;
+          }
+
+          const ctx = canvas.getContext("2d");
+
+          // Create new chart and store reference globally
+          window.personalityRadarChart = new Chart(ctx, {
+            type: "radar",
+            data: {
+              labels: [
+                "Friendliness",
+                "Trust",
+                "Affection",
+                "Romantic Interest",
+                "Admiration",
+                "Low Annoyance",
+              ],
+              datasets: [
+                {
+                  label: "Personality Profile",
+                  data: [
+                    parseFloat(personality.friendliness) || 0,
+                    parseFloat(personality.trust) || 0,
+                    parseFloat(personality.affection) || 0,
+                    parseFloat(personality.romantic_interest) || 0,
+                    parseFloat(personality.admiration) || 0,
+                    10 - (parseFloat(personality.annoyance) || 0), // Invert annoyance
+                  ],
+                  backgroundColor: "rgba(102, 126, 234, 0.2)",
+                  borderColor: "rgba(102, 126, 234, 1)",
+                  borderWidth: 2,
+                  pointBackgroundColor: "rgba(102, 126, 234, 1)",
+                  pointBorderColor: "#fff",
+                  pointBorderWidth: 2,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 1,
+              layout: {
+                padding: 20,
+              },
+              plugins: {
+                legend: {
+                  display: false,
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function (context) {
+                      let label = context.dataset.label || "";
+                      if (label) {
+                        label += ": ";
+                      }
+                      // Handle inverted annoyance display
+                      if (context.label === "Low Annoyance") {
+                        label +=
+                          (10 - context.parsed.r).toFixed(1) + "/10 annoyance";
+                      } else {
+                        label += context.parsed.r.toFixed(1) + "/10";
+                      }
+                      return label;
+                    },
+                  },
+                },
+              },
+              scales: {
+                r: {
+                  min: 0,
+                  max: 10,
+                  beginAtZero: true,
+                  angleLines: {
+                    display: true,
+                    color: "rgba(0, 0, 0, 0.1)",
+                  },
+                  grid: {
+                    color: "rgba(0, 0, 0, 0.1)",
+                  },
+                  pointLabels: {
+                    font: {
+                      size: 11,
+                    },
+                    color: "#666",
+                  },
+                  ticks: {
+                    stepSize: 2,
+                    display: true,
+                    backdropColor: "transparent",
+                    font: {
+                      size: 9,
+                    },
+                    color: "#999",
+                  },
+                },
+              },
+              animation: {
+                duration: 600,
+                easing: "easeOutQuart",
+              },
+            },
+          });
+
+          console.log("Personality radar chart created successfully");
+        } catch (error) {
+          console.error("Error creating personality radar chart:", error);
+          // Show fallback message
+          const container = document.querySelector(".radar-chart-container");
+          if (container) {
+            container.innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Error loading personality radar chart: ${
+                  error.message || "Unknown error"
+                }
+              </div>
+            `;
+          }
+        }
+      }
+
+      // Load emotional states for all NPCs
+      async function loadEmotionalStates() {
+        try {
+          const response = await fetch("/monitoring/api/emotional-states");
+          const data = await response.json();
+
+          const container = document.getElementById("emotional-states-grid");
+          container.innerHTML = "";
+
+          if (data.emotional_states.length === 0) {
+            container.innerHTML = `
+              <div class="col-12">
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i>
+                  No hay estados emocionales registrados. Los estados emocionales se crean cuando los NPCs interactúan con jugadores.
+                  <br><small class="text-muted mt-2">
+                    📊 NOTA: Cada NPC tiene un estado emocional diferente hacia cada jugador, no son globales.
+                  </small>
+                </div>
+              </div>
+            `;
+            return;
+          }
+
+          // Add explanatory header
+          container.innerHTML = `
+            <div class="col-12 mb-4">
+              <div class="alert alert-primary">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Estados Emocionales por Relación</strong>
+                <br>Cada carta muestra cómo se siente un NPC específicamente hacia un jugador individual.
+                <br><small class="text-muted">
+                  ⚠️ DATOS DE PERCEPCIÓN: Los estados emocionales son únicos por cada relación jugador-NPC
+                </small>
+              </div>
+            </div>
+          `;
+
+          data.emotional_states.forEach((npcState) => {
+            const card = createEmotionalStateCard(npcState);
+            container.appendChild(card);
+          });
+
+          // Add summary info
+          const summaryDiv = document.createElement("div");
+          summaryDiv.className = "col-12 mt-3";
+          summaryDiv.innerHTML = `
+            <div class="alert alert-secondary">
+              <small>
+                📊 Total de relaciones: ${
+                  data.total_relationships || data.emotional_states.length
+                }
+                <br>${
+                  data.note ||
+                  "Cada estado emocional es específico por relación jugador-NPC"
+                }
+              </small>
+            </div>
+          `;
+          container.appendChild(summaryDiv);
+        } catch (error) {
+          console.error("Error loading emotional states:", error);
+          showNotification(
+            "Error",
+            "Failed to load emotional states",
+            "danger"
+          );
+        }
+      }
+
+      // Create emotional state card
+      function createEmotionalStateCard(npcState) {
+        const div = document.createElement("div");
+        div.className = "col-md-4 mb-3";
+
+        const moodEmojis = {
+          VERY_HAPPY: "😄",
+          HAPPY: "😊",
+          CONTENT: "😌",
+          NEUTRAL: "😐",
+          WORRIED: "😟",
+          SAD: "😢",
+          ANGRY: "😠",
+          EXCITED: "🤩",
+          ROMANTIC: "🥰",
+          NOSTALGIC: "🤔",
+          STRESSED: "😰",
+        };
+
+        const mood = npcState.emotional_state.current_mood;
+        const moodEmoji = moodEmojis[mood] || "😐";
+        const intensity = npcState.emotional_state.mood_intensity;
+
+        // Determine card color based on mood
+        let cardClass = "border-primary";
+        if (mood.includes("HAPPY") || mood === "EXCITED")
+          cardClass = "border-success";
+        else if (mood === "SAD" || mood === "WORRIED")
+          cardClass = "border-info";
+        else if (mood === "ANGRY" || mood === "STRESSED")
+          cardClass = "border-danger";
+
+        div.innerHTML = `
+          <div class="card ${cardClass} shadow-sm">
+            <div class="card-header bg-light py-2">
+              <div class="d-flex justify-content-between align-items-center">
+                <strong class="text-primary">${npcState.npc_name}</strong>
+                <small class="text-muted">
+                  <i class="fas fa-arrow-right mx-1"></i>
+                  ${npcState.player_name || "Unknown Player"}
+                </small>
+              </div>
+              <small class="text-muted">
+                ⚠️ Percepción del NPC hacia el jugador
+              </small>
+            </div>
+            <div class="card-body text-center">
+              <div class="mb-3">
+                <span class="display-4">${moodEmoji}</span>
+              </div>
+              <h6 class="text-muted">${mood.replace("_", " ")}</h6>
+              <div class="progress mb-2" style="height: 10px;">
+                <div class="progress-bar bg-${cardClass.replace(
+                  "border-",
+                  ""
+                )}" 
+                     style="width: ${(intensity / 10) * 100}%"></div>
+              </div>
+              <small class="text-muted">Intensidad: ${intensity.toFixed(
+                1
+              )}/10</small>
+              ${
+                npcState.npc_location
+                  ? `<br><small class="text-muted"><i class="fas fa-map-marker-alt"></i> ${npcState.npc_location}</small>`
+                  : ""
+              }
+              ${
+                npcState.emotional_state.last_interaction_effect
+                  ? `<br><small class="text-info mt-2 d-block"><i class="fas fa-comment"></i> "${npcState.emotional_state.last_interaction_effect}"</small>`
+                  : ""
+              }
+            </div>
+          </div>
+        `;
+
+        return div;
+      }
+
+      // Load conversation history between player and NPC
+      async function loadConversationHistory(playerName, npcName) {
+        try {
+          const response = await fetch(
+            `/monitoring/api/recent_conversations?limit=50`
+          );
+          const data = await response.json();
+
+          // Filter conversations for this player-NPC pair
+          const playerNpcConversations = data.recent_conversations.filter(
+            (conv) =>
+              conv.player_name === playerName && conv.npc_name === npcName
+          );
+
+          const historySection = document.getElementById(
+            "conversation-history-section"
+          );
+
+          if (playerNpcConversations.length === 0) {
+            historySection.innerHTML = `
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                  <h6 class="mb-0"><i class="fas fa-history me-2"></i>Conversation History</h6>
+                </div>
+                <div class="card-body">
+                  <div class="alert alert-info">No conversations found between ${playerName} and ${npcName}</div>
+                </div>
+              </div>
+            `;
+          } else {
+            historySection.innerHTML = `
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                  <h6 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Conversation History (${
+                      playerNpcConversations.length
+                    } conversations)
+                  </h6>
+                </div>
+                <div class="card-body">
+                  <div class="timeline">
+                    ${playerNpcConversations
+                      .map((conv) => createConversationTimelineItem(conv))
+                      .join("")}
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+
+          historySection.style.display = "block";
+        } catch (error) {
+          console.error("Error loading conversation history:", error);
+          showNotification(
+            "Error",
+            "Failed to load conversation history",
+            "danger"
+          );
+        }
+      }
+
+      // Create conversation timeline item
+      function createConversationTimelineItem(conversation) {
+        const startDate = new Date(conversation.start_time);
+        const duration = Math.round(conversation.duration_minutes);
+
+        return `
+          <div class="timeline-item mb-3 p-3 border rounded bg-light">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="mb-1">${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString()}</h6>
+                <p class="text-muted mb-2">
+                  <i class="fas fa-map-marker-alt me-1"></i>${
+                    conversation.location || "Unknown"
+                  } • 
+                  <i class="fas fa-clock me-1"></i>${duration}m • 
+                  <i class="fas fa-comments me-1"></i>${
+                    conversation.message_count
+                  } messages •
+                  <i class="fas fa-heart me-1"></i>${
+                    conversation.friendship_hearts || 0
+                  } hearts
+                </p>
+                ${
+                  conversation.season
+                    ? `<span class="badge bg-secondary">${conversation.season}</span>`
+                    : ""
+                }
+              </div>
+              <button class="btn btn-sm btn-outline-primary" onclick="openConversationModal('${
+                conversation.id
+              }')">
+                <i class="fas fa-eye me-1"></i>Details
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      // Open conversation details modal
+      async function openConversationModal(conversationId) {
+        try {
+          const response = await fetch(
+            `/monitoring/api/conversation/${conversationId}/history`
+          );
+          const data = await response.json();
+
+          // Create and show modal
+          const modalHTML = createConversationModalHTML(data);
+          document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+          const modal = new bootstrap.Modal(
+            document.getElementById("conversationModal")
+          );
+          modal.show();
+
+          // Clean up modal when hidden
+          document
+            .getElementById("conversationModal")
+            .addEventListener("hidden.bs.modal", function () {
+              this.remove();
+            });
+        } catch (error) {
+          console.error("Error loading conversation details:", error);
+          showNotification(
+            "Error",
+            "Failed to load conversation details",
+            "danger"
+          );
+        }
+      }
+
+      // Create conversation modal HTML
+      function createConversationModalHTML(data) {
+        const conv = data.conversation;
+        const timeline = data.dialogue_timeline;
+        const context = data.relationship_context;
+
+        const startTime = new Date(conv.start_time);
+        const endTime = conv.end_time ? new Date(conv.end_time) : null;
+
+        return `
+          <div class="modal fade" id="conversationModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">
+                    <i class="fas fa-comments me-2"></i>
+                    Conversation: ${conv.player_name} & ${conv.npc_name}
+                  </h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="row mb-4">
+                    <div class="col-md-6">
+                      <h6>Conversation Details</h6>
+                      <ul class="list-unstyled">
+                        <li><strong>Start:</strong> ${startTime.toLocaleString()}</li>
+                        <li><strong>End:</strong> ${
+                          endTime ? endTime.toLocaleString() : "Ongoing"
+                        }</li>
+                        <li><strong>Duration:</strong> ${Math.round(
+                          conv.duration_seconds / 60
+                        )}m ${Math.round(conv.duration_seconds % 60)}s</li>
+                        <li><strong>Location:</strong> ${
+                          conv.location || "Unknown"
+                        }</li>
+                        <li><strong>Messages:</strong> ${
+                          conv.total_messages
+                        }</li>
+                        <li><strong>Friendship:</strong> ${
+                          conv.friendship_hearts || 0
+                        } hearts</li>
+                      </ul>
+                    </div>
+                    <div class="col-md-6">
+                      <h6>Context</h6>
+                      <ul class="list-unstyled">
+                        <li><strong>Season:</strong> ${
+                          conv.season || "Unknown"
+                        }</li>
+                        <li><strong>Day:</strong> ${
+                          conv.day_of_week || "Unknown"
+                        }</li>
+                        <li><strong>Time:</strong> ${
+                          conv.time_of_day || "Unknown"
+                        }</li>
+                        <li><strong>Weather:</strong> ${
+                          conv.weather || "Unknown"
+                        }</li>
+                        <li><strong>NPC Mood:</strong> ${context.emotional_state.current_mood.replace(
+                          "_",
+                          " "
+                        )} (${context.emotional_state.mood_intensity}/10)</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <h6>Dialogue Timeline</h6>
+                  <div class="conversation-timeline" style="max-height: 400px; overflow-y: auto;">
+                    ${timeline
+                      .map((entry) => createDialogueEntry(entry))
+                      .join("")}
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Create dialogue entry HTML
+      function createDialogueEntry(entry) {
+        const time = new Date(entry.timestamp);
+        const isPlayer = entry.speaker === "player";
+        const alignClass = isPlayer ? "text-end" : "text-start";
+        const bgClass = isPlayer ? "bg-primary text-white" : "bg-light";
+
+        return `
+          <div class="mb-2 ${alignClass}">
+            <div class="d-inline-block p-2 rounded ${bgClass}" style="max-width: 70%;">
+              <div class="small mb-1">
+                <strong>${entry.speaker_display_name}</strong>
+                <span class="opacity-75"> • ${time.toLocaleTimeString()}</span>
+              </div>
+              <div>${entry.message}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Search memories between player and NPC
+      async function searchMemories(playerName, npcName) {
+        const query = prompt(
+          `Search memories between ${playerName} and ${npcName}:`,
+          "our conversations"
+        );
+        if (!query) return;
+
+        try {
+          const response = await fetch(
+            `/monitoring/api/memories/search?player_name=${encodeURIComponent(
+              playerName
+            )}&npc_name=${encodeURIComponent(
+              npcName
+            )}&query=${encodeURIComponent(query)}`
+          );
+          const data = await response.json();
+
+          // Show memories in a modal or alert
+          if (data.memories.length === 0) {
+            alert("No memories found for that search query.");
+          } else {
+            const memoriesText = data.memories
+              .map(
+                (memory) =>
+                  `${memory.speaker}: "${memory.message}" (${new Date(
+                    memory.timestamp
+                  ).toLocaleDateString()})`
+              )
+              .join("\n\n");
+
+            alert(`Found ${data.memories.length} memories:\n\n${memoriesText}`);
+          }
+        } catch (error) {
+          console.error("Error searching memories:", error);
+          showNotification("Error", "Failed to search memories", "danger");
+        }
+      }
+
+      // Add alias for loadRelationshipHistory
+      function loadRelationshipHistory(playerName, npcName) {
+        loadConversationHistory(playerName, npcName);
+      }
+    </script>
+  </body>
+</html>

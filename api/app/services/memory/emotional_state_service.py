@@ -33,17 +33,21 @@ class EmotionalStateService:
     def __init__(self):
         pass
 
-    async def get_emotional_state(self, npc_id: str) -> Dict[str, Any]:
-        """Get the current emotional state for an NPC."""
+    async def get_emotional_state(
+        self, npc_id: str, player_id: str = None
+    ) -> Dict[str, Any]:
+        """Get the current emotional state for an NPC towards a specific player."""
         try:
-            # For now, return a default emotional state since we don't have the EmotionalState model yet
-            # TODO: Once EmotionalState model is implemented in schema, use actual database
+            if not player_id:
+                # Return a default state if no player specified
+                return self._get_default_emotional_state(npc_id)
 
-            # Check if we have an emotional state stored (mock for now)
-            state = await self._get_or_create_emotional_state(npc_id)
+            # Get the emotional state for this specific NPC-Player relationship
+            state = await self._get_or_create_emotional_state(npc_id, player_id)
 
             return {
                 "npc_id": npc_id,
+                "player_id": player_id,
                 "current_mood": state.get("current_mood", "NEUTRAL"),
                 "mood_intensity": state.get("mood_intensity", 5.0),
                 "recent_joy": state.get("recent_joy", 0.0),
@@ -54,22 +58,28 @@ class EmotionalStateService:
                 "last_interaction_effect": state.get("last_interaction_effect", ""),
                 "external_factors": state.get("external_factors", ""),
                 "last_updated": state.get("last_updated", datetime.now()),
+                "relationship_context": "⚠️ DATOS DE PERCEPCIÓN: Estado emocional del NPC hacia este jugador específico",
             }
         except Exception as e:
-            logger.error(f"Error getting emotional state for NPC {npc_id}: {e}")
-            return self._get_default_emotional_state(npc_id)
+            logger.error(
+                f"Error getting emotional state for NPC {npc_id} towards player {player_id}: {e}"
+            )
+            return self._get_default_emotional_state(npc_id, player_id)
 
-    async def _get_or_create_emotional_state(self, npc_id: str) -> Dict[str, Any]:
-        """Get or create emotional state for an NPC from database."""
+    async def _get_or_create_emotional_state(
+        self, npc_id: str, player_id: str
+    ) -> Dict[str, Any]:
+        """Get or create emotional state for an NPC towards a specific player."""
         try:
-            # Try to get existing emotional state from database
+            # Try to get existing emotional state from database using the new schema
             emotional_state = await db.emotionalstate.find_unique(
-                where={"npcId": npc_id}
+                where={"npcId_playerId": {"npcId": npc_id, "playerId": player_id}}
             )
 
             if emotional_state:
                 return {
                     "npc_id": npc_id,
+                    "player_id": player_id,
                     "current_mood": emotional_state.currentMood,
                     "mood_intensity": float(emotional_state.moodIntensity),
                     "recent_joy": float(emotional_state.recentJoy),
@@ -84,10 +94,11 @@ class EmotionalStateService:
                 }
             else:
                 # Create new emotional state with defaults
-                default_state = self._get_default_emotional_state(npc_id)
+                default_state = self._get_default_emotional_state(npc_id, player_id)
                 created_state = await db.emotionalstate.create(
                     data={
                         "npcId": npc_id,
+                        "playerId": player_id,
                         "currentMood": default_state["current_mood"],
                         "moodIntensity": default_state["mood_intensity"],
                         "recentJoy": default_state["recent_joy"],
@@ -101,19 +112,24 @@ class EmotionalStateService:
                         "externalFactors": default_state["external_factors"],
                     }
                 )
-                logger.info(f"Created new emotional state for NPC {npc_id}")
+                logger.info(
+                    f"Created new emotional state for NPC {npc_id} towards player {player_id}"
+                )
                 return default_state
 
         except Exception as e:
             logger.error(
-                f"Error getting/creating emotional state for NPC {npc_id}: {e}"
+                f"Error getting/creating emotional state for NPC {npc_id} towards player {player_id}: {e}"
             )
-            return self._get_default_emotional_state(npc_id)
+            return self._get_default_emotional_state(npc_id, player_id)
 
-    def _get_default_emotional_state(self, npc_id: str) -> Dict[str, Any]:
-        """Get default emotional state for an NPC."""
+    def _get_default_emotional_state(
+        self, npc_id: str, player_id: str = None
+    ) -> Dict[str, Any]:
+        """Get default emotional state for an NPC towards a player."""
         return {
             "npc_id": npc_id,
+            "player_id": player_id,
             "current_mood": "NEUTRAL",
             "mood_intensity": 5.0,
             "recent_joy": 0.0,
@@ -124,6 +140,9 @@ class EmotionalStateService:
             "last_interaction_effect": "",
             "external_factors": "",
             "last_updated": datetime.now(),
+            "relationship_context": "📊 DATOS BASE: Estado emocional neutro por defecto"
+            if player_id
+            else "📊 DATOS BASE: Estado emocional global",
         }
 
     def generate_mood_context_for_dialogue(

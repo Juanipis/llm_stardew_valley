@@ -52,6 +52,7 @@ model Player {
   memoryEpisodes      MemoryEpisode[]
   preferences         PlayerPreference[]
   milestones          RelationshipMilestone[]
+  emotionalStates     EmotionalState[]
 }
 
 model Npc {
@@ -62,7 +63,7 @@ model Npc {
   updatedAt          DateTime                  @updatedAt
   personalityProfiles PlayerPersonalityProfile[]
   conversations       Conversation[]
-  emotionalState      EmotionalState?
+  emotionalStates     EmotionalState[]
   memoryEpisodes      MemoryEpisode[]
   preferences         PlayerPreference[]
   milestones          RelationshipMilestone[]
@@ -166,11 +167,13 @@ model MemoryEpisode {
   createdAt       DateTime  @default(now())
 }
 
-// NEW: NPC's current emotional state (changes throughout the day/interactions)
+// NEW: NPC's emotional state towards a specific player (changes throughout interactions)
 model EmotionalState {
   id                String   @id @default(cuid())
-  npcId            String   @unique
+  npcId            String
+  playerId         String
   npc              Npc      @relation(fields: [npcId], references: [id])
+  player           Player   @relation(fields: [playerId], references: [id])
   
   // Current emotional state (changes throughout the day/interactions)
   currentMood      Mood     @default(NEUTRAL)
@@ -188,6 +191,8 @@ model EmotionalState {
   externalFactors       String? @db.Text // Weather, events, etc.
   
   lastUpdated      DateTime @default(now())
+  
+  @@unique([npcId, playerId])
 }
 
 // NEW: What the NPC learns about the player's preferences

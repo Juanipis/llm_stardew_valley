@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 
 from app.db import db
@@ -8,13 +8,22 @@ from app.services.memory.vector_service import vector_service
 
 logger = logging.getLogger(__name__)
 
+# Import realtime monitor for WebSocket notifications
+try:
+    from app.websockets.realtime import realtime_monitor
+
+    REALTIME_AVAILABLE = True
+except ImportError:
+    REALTIME_AVAILABLE = False
+    logger.warning("Realtime monitor not available, WebSocket notifications disabled")
+
 
 async def get_or_create_active_conversation(
     player_id: str, npc_id: str, context: Dict[str, Any]
 ) -> str:
     """Obtiene una conversación activa o crea una nueva, usando Prisma."""
     try:
-        cutoff_time = datetime.now() - timedelta(
+        cutoff_time = datetime.now(timezone.utc) - timedelta(
             minutes=settings.conversation_timeout_minutes
         )
 
@@ -48,6 +57,29 @@ async def get_or_create_active_conversation(
             }
         )
         logger.info(f"Created new conversation: {new_conversation.id}")
+
+        # Send real-time notification for new conversation
+        if REALTIME_AVAILABLE:
+            try:
+                # Get player and NPC names for the notification
+                player = await db.player.find_unique(where={"id": player_id})
+                npc = await db.npc.find_unique(where={"id": npc_id})
+
+                if player and npc:
+                    await realtime_monitor.notify_new_conversation(
+                        {
+                            "conversation_id": new_conversation.id,
+                            "player_name": player.name,
+                            "npc_name": npc.name,
+                            "location": context.get("player_location"),
+                            "season": context.get("season"),
+                            "friendship_hearts": context.get("friendship_hearts", 0),
+                            "start_time": new_conversation.startTime.isoformat(),
+                        }
+                    )
+            except Exception as e:
+                logger.error(f"Error sending new conversation notification: {e}")
+
         return new_conversation.id
     except Exception as e:
         logger.error(f"Error en get_or_create_active_conversation: {e}")
@@ -125,10 +157,40 @@ async def add_dialogue_entry(
 async def end_conversation(conversation_id: str):
     """Marca una conversación como terminada estableciendo su 'endTime'."""
     try:
+        # Get conversation details before ending for notification
+        conversation_data = None
+        if REALTIME_AVAILABLE:
+            try:
+                conversation = await db.conversation.find_unique(
+                    where={"id": conversation_id}, include={"player": True, "npc": True}
+                )
+                if conversation:
+                    conversation_data = {
+                        "conversation_id": conversation_id,
+                        "player_name": conversation.player.name,
+                        "npc_name": conversation.npc.name,
+                        "location": conversation.playerLocation,
+                        "duration_minutes": (
+                            datetime.now(timezone.utc) - conversation.startTime
+                        ).total_seconds()
+                        / 60,
+                        "end_time": datetime.now(timezone.utc).isoformat(),
+                    }
+            except Exception as e:
+                logger.error(f"Error preparing conversation end notification: {e}")
+
         await db.conversation.update(
-            where={"id": conversation_id}, data={"endTime": datetime.now()}
+            where={"id": conversation_id}, data={"endTime": datetime.now(timezone.utc)}
         )
         logger.info(f"Conversation {conversation_id} has ended.")
+
+        # Send real-time notification for conversation end
+        if REALTIME_AVAILABLE and conversation_data:
+            try:
+                await realtime_monitor.notify_conversation_ended(conversation_data)
+            except Exception as e:
+                logger.error(f"Error sending conversation end notification: {e}")
+
     except Exception as e:
         logger.error(f"Error al finalizar la conversación {conversation_id}: {e}")
 
@@ -155,7 +217,7 @@ async def get_conversation_summary(conversation_id: str) -> Dict[str, Any]:
 
         # Calculate conversation duration
         start_time = conversation.startTime
-        end_time = conversation.endTime or datetime.now()
+        end_time = conversation.endTime or datetime.now(timezone.utc)
         duration_minutes = (end_time - start_time).total_seconds() / 60
 
         # Count dialogue entries by speaker

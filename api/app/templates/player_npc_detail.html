@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome Icons -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+      .personality-meter {
+        height: 20px;
+        border-radius: 10px;
+        overflow: hidden;
+        background-color: #e9ecef;
+      }
+
+      .personality-fill {
+        height: 100%;
+        transition: width 0.5s ease-in-out;
+      }
+
+      .conversation-timeline {
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .message-bubble {
+        margin-bottom: 1rem;
+      }
+
+      .message-bubble.player {
+        text-align: right;
+      }
+
+      .message-bubble.npc {
+        text-align: left;
+      }
+
+      .bubble-content {
+        display: inline-block;
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        max-width: 80%;
+      }
+
+      .bubble-content.player {
+        background-color: #007bff;
+        color: white;
+      }
+
+      .bubble-content.npc {
+        background-color: #6c757d;
+        color: white;
+      }
+
+      .mood-indicator {
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 0.9em;
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body class="bg-light">
+    <div class="container-fluid">
+      <div class="row">
+        <!-- Header -->
+        <div class="col-12">
+          <div class="bg-white shadow-sm p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h1 class="mb-0">
+                  <i class="fas fa-users me-2 text-primary"></i>
+                  {{ player_name }} & {{ npc_name }}
+                </h1>
+                <p class="text-muted mb-0">Detailed Relationship Analysis</p>
+              </div>
+              <div>
+                <a href="/monitoring/" class="btn btn-outline-primary">
+                  <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+                <button class="btn btn-primary" id="refresh-data">
+                  <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Personality Profile -->
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0">
+                <i class="fas fa-brain me-2"></i>
+                Personality Profile
+              </h5>
+              <small class="opacity-75"
+                >How {{ npc_name }} perceives {{ player_name }}</small
+              >
+            </div>
+            <div class="card-body" id="personality-profile">
+              <!-- Personality data will be loaded here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Emotional State -->
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0">
+                <i class="fas fa-heart me-2"></i>
+                Current Emotional State
+              </h5>
+              <small class="opacity-75">{{ npc_name }}'s current mood</small>
+            </div>
+            <div class="card-body" id="emotional-state">
+              <!-- Emotional state data will be loaded here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Conversation History -->
+        <div class="col-md-8">
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+              <h5 class="mb-0">
+                <i class="fas fa-comments me-2"></i>
+                Recent Conversations
+              </h5>
+            </div>
+            <div class="card-body">
+              <div id="conversation-list">
+                <!-- Conversation list will be loaded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Relationship Metrics -->
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-warning text-white">
+              <h5 class="mb-0">
+                <i class="fas fa-chart-bar me-2"></i>
+                Relationship Metrics
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas id="relationshipChart" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversation Detail Modal -->
+      <div class="modal fade" id="conversationModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Conversation Details</h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+              ></button>
+            </div>
+            <div class="modal-body">
+              <div id="conversation-timeline" class="conversation-timeline">
+                <!-- Conversation messages will be loaded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-time notifications toast container -->
+    <div
+      class="toast-container position-fixed bottom-0 end-0 p-3"
+      id="toast-container"
+    ></div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      const playerName = "{{ player_name }}";
+      const npcName = "{{ npc_name }}";
+      let relationshipChart = null;
+      let websocket = null;
+
+      document.addEventListener("DOMContentLoaded", function () {
+        initWebSocket();
+        loadAllData();
+        initChart();
+
+        // Set up refresh button
+        document
+          .getElementById("refresh-data")
+          .addEventListener("click", loadAllData);
+
+        // Refresh data every 30 seconds
+        setInterval(loadAllData, 30000);
+      });
+
+      function initWebSocket() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws/monitoring?connection_type=player_npc_detail`;
+
+        websocket = new WebSocket(wsUrl);
+
+        websocket.onopen = function (event) {
+          console.log("WebSocket connected");
+        };
+
+        websocket.onmessage = function (event) {
+          const data = JSON.parse(event.data);
+          handleRealtimeUpdate(data);
+        };
+
+        websocket.onclose = function (event) {
+          console.log("WebSocket disconnected");
+          setTimeout(initWebSocket, 5000);
+        };
+      }
+
+      function handleRealtimeUpdate(data) {
+        // Handle real-time updates specific to this player-NPC pair
+        if (
+          data.type === "personality_update" &&
+          data.data.player_name === playerName &&
+          data.data.npc_name === npcName
+        ) {
+          loadPersonalityProfile();
+        }
+
+        if (
+          data.type === "emotional_state_change" &&
+          data.data.npc_name === npcName
+        ) {
+          loadEmotionalState();
+        }
+
+        if (
+          data.type === "conversation_ended" &&
+          data.data.player_name === playerName &&
+          data.data.npc_name === npcName
+        ) {
+          loadConversations();
+        }
+      }
+
+      async function loadAllData() {
+        await Promise.all([
+          loadPersonalityProfile(),
+          loadEmotionalState(),
+          loadConversations(),
+        ]);
+      }
+
+      async function loadPersonalityProfile() {
+        try {
+          const response = await fetch(
+            `/monitoring/api/player/${playerName}/relationships`
+          );
+          const data = await response.json();
+
+          const npcData = data.relationships.find(
+            (rel) => rel.npc_name === npcName
+          );
+          if (!npcData) {
+            document.getElementById("personality-profile").innerHTML =
+              '<div class="alert alert-warning">No personality data found</div>';
+            return;
+          }
+
+          const personality = npcData.personality;
+
+          document.getElementById("personality-profile").innerHTML = `
+                <div class="mb-3">
+                    <h6 class="text-muted mb-2">Overall Perception</h6>
+                    <p class="mb-0">"${personality.summary}"</p>
+                </div>
+                
+                ${createPersonalityMeter("Trust", personality.trust, "primary")}
+                ${createPersonalityMeter(
+                  "Affection",
+                  personality.affection,
+                  "danger"
+                )}
+                ${createPersonalityMeter(
+                  "Friendliness",
+                  personality.friendliness,
+                  "success"
+                )}
+                ${createPersonalityMeter(
+                  "Annoyance",
+                  personality.annoyance,
+                  "warning"
+                )}
+                ${createPersonalityMeter(
+                  "Admiration",
+                  personality.admiration,
+                  "info"
+                )}
+                ${createPersonalityMeter(
+                  "Romantic Interest",
+                  personality.romantic_interest,
+                  "secondary"
+                )}
+            `;
+
+          // Update relationship chart
+          updateRelationshipChart(personality);
+        } catch (error) {
+          console.error("Error loading personality profile:", error);
+          document.getElementById("personality-profile").innerHTML =
+            '<div class="alert alert-danger">Error loading personality data</div>';
+        }
+      }
+
+      async function loadEmotionalState() {
+        try {
+          const response = await fetch(
+            `/monitoring/api/npc/${npcName}/relationships`
+          );
+          const data = await response.json();
+
+          const emotionalState = data.emotional_state;
+
+          const moodClass = getMoodClass(emotionalState.current_mood);
+
+          document.getElementById("emotional-state").innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Current Mood</h6>
+                        <span class="mood-indicator ${moodClass}">
+                            ${emotionalState.current_mood}
+                        </span>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Intensity</h6>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: ${
+                              emotionalState.mood_intensity * 10
+                            }%">
+                                ${emotionalState.mood_intensity}/10
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${
+                  emotionalState.last_interaction_effect
+                    ? `
+                    <div class="mt-3">
+                        <h6 class="text-muted mb-2">Last Interaction Effect</h6>
+                        <p class="mb-0">${emotionalState.last_interaction_effect}</p>
+                    </div>
+                `
+                    : ""
+                }
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        Last updated: ${new Date(
+                          emotionalState.last_updated
+                        ).toLocaleString()}
+                    </small>
+                </div>
+            `;
+        } catch (error) {
+          console.error("Error loading emotional state:", error);
+          document.getElementById("emotional-state").innerHTML =
+            '<div class="alert alert-danger">Error loading emotional state</div>';
+        }
+      }
+
+      async function loadConversations() {
+        try {
+          const response = await fetch(
+            `/monitoring/api/recent_conversations?limit=20`
+          );
+          const data = await response.json();
+
+          const playerNpcConversations = data.recent_conversations.filter(
+            (conv) =>
+              conv.player_name === playerName && conv.npc_name === npcName
+          );
+
+          if (playerNpcConversations.length === 0) {
+            document.getElementById("conversation-list").innerHTML =
+              '<div class="alert alert-info">No conversations found</div>';
+            return;
+          }
+
+          const conversationHtml = playerNpcConversations
+            .map(
+              (conv) => `
+                <div class="card border-left-primary mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${new Date(
+                                  conv.start_time
+                                ).toLocaleString()}</h6>
+                                <p class="text-muted small mb-2">
+                                    <i class="fas fa-map-marker-alt me-1"></i>${
+                                      conv.location
+                                    } • 
+                                    <i class="fas fa-clock me-1"></i>${Math.round(
+                                      conv.duration_minutes
+                                    )}m • 
+                                    <i class="fas fa-comments me-1"></i>${
+                                      conv.message_count
+                                    } messages
+                                </p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewConversationDetails('${
+                              conv.id
+                            }')">
+                                <i class="fas fa-eye me-1"></i>View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `
+            )
+            .join("");
+
+          document.getElementById("conversation-list").innerHTML =
+            conversationHtml;
+        } catch (error) {
+          console.error("Error loading conversations:", error);
+          document.getElementById("conversation-list").innerHTML =
+            '<div class="alert alert-danger">Error loading conversations</div>';
+        }
+      }
+
+      function createPersonalityMeter(label, value, color) {
+        const percentage = (value / 10) * 100;
+        return `
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small font-weight-bold">${label}</span>
+                    <span class="small">${value.toFixed(1)}/10</span>
+                </div>
+                <div class="personality-meter">
+                    <div class="personality-fill bg-${color}" style="width: ${percentage}%"></div>
+                </div>
+            </div>
+        `;
+      }
+
+      function getMoodClass(mood) {
+        const moodClasses = {
+          VERY_HAPPY: "bg-success text-white",
+          HAPPY: "bg-success text-white",
+          CONTENT: "bg-info text-white",
+          NEUTRAL: "bg-secondary text-white",
+          WORRIED: "bg-warning text-dark",
+          SAD: "bg-primary text-white",
+          ANGRY: "bg-danger text-white",
+          EXCITED: "bg-warning text-dark",
+          ROMANTIC: "bg-danger text-white",
+          NOSTALGIC: "bg-info text-white",
+          STRESSED: "bg-warning text-dark",
+        };
+        return moodClasses[mood] || "bg-secondary text-white";
+      }
+
+      function initChart() {
+        const ctx = document
+          .getElementById("relationshipChart")
+          .getContext("2d");
+        relationshipChart = new Chart(ctx, {
+          type: "radar",
+          data: {
+            labels: [
+              "Trust",
+              "Affection",
+              "Friendliness",
+              "Admiration",
+              "Romantic Interest",
+            ],
+            datasets: [
+              {
+                label: "Relationship Metrics",
+                data: [5, 5, 5, 5, 5], // Default values
+                backgroundColor: "rgba(54, 162, 235, 0.2)",
+                borderColor: "rgba(54, 162, 235, 1)",
+                pointBackgroundColor: "rgba(54, 162, 235, 1)",
+                pointBorderColor: "#fff",
+                pointHoverBackgroundColor: "#fff",
+                pointHoverBorderColor: "rgba(54, 162, 235, 1)",
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: {
+                beginAtZero: true,
+                max: 10,
+                ticks: {
+                  stepSize: 2,
+                },
+              },
+            },
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+          },
+        });
+      }
+
+      function updateRelationshipChart(personality) {
+        if (relationshipChart) {
+          relationshipChart.data.datasets[0].data = [
+            personality.trust,
+            personality.affection,
+            personality.friendliness,
+            personality.admiration,
+            personality.romantic_interest,
+          ];
+          relationshipChart.update();
+        }
+      }
+
+      async function viewConversationDetails(conversationId) {
+        try {
+          const response = await fetch(
+            `/monitoring/api/conversation/${conversationId}/details`
+          );
+          const data = await response.json();
+
+          const conversation = data.conversation;
+          const timeline = conversation.dialogue_entries
+            .map(
+              (entry) => `
+                <div class="message-bubble ${
+                  entry.speaker === "player" ? "player" : "npc"
+                }">
+                    <div class="bubble-content ${
+                      entry.speaker === "player" ? "player" : "npc"
+                    }">
+                        <div class="message-text">${entry.message}</div>
+                        <small class="opacity-75">${new Date(
+                          entry.timestamp
+                        ).toLocaleTimeString()}</small>
+                    </div>
+                </div>
+            `
+            )
+            .join("");
+
+          document.getElementById("conversation-timeline").innerHTML = timeline;
+
+          const modal = new bootstrap.Modal(
+            document.getElementById("conversationModal")
+          );
+          modal.show();
+        } catch (error) {
+          console.error("Error loading conversation details:", error);
+        }
+      }
+    </script>
+  </body>
+</html>
