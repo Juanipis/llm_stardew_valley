@@ -55,8 +55,6 @@ GEMINI_API_KEY="..."
 
 # Recommended models for Google
 DIALOGUE_MODEL="gemini-1.5-flash-latest"
-PERSONALITY_MODEL="gemini-1.5-flash-latest"
-EMOTIONAL_MODEL="gemini-1.5-flash-latest"
 MEMORY_CONSOLIDATION_MODEL="gemini-1.5-flash-latest"
 ```
 
@@ -69,8 +67,6 @@ OPENAI_API_KEY="..."
 
 # Recommended models for OpenAI
 DIALOGUE_MODEL="gpt-4o"
-PERSONALITY_MODEL="gpt-4o-mini"
-EMOTIONAL_MODEL="gpt-4o-mini"
 MEMORY_CONSOLIDATION_MODEL="gpt-4o-mini"
 ```
 
@@ -83,8 +79,6 @@ OLLAMA_API_BASE_URL="http://localhost:11434"
 
 # Make sure you have pulled these models, e.g., `ollama pull llama3`
 DIALOGUE_MODEL="llama3"
-PERSONALITY_MODEL="llama3"
-EMOTIONAL_MODEL="llama3"
 MEMORY_CONSOLIDATION_MODEL="llama3"
 ```
 

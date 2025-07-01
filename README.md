@@ -64,3 +64,5 @@ Use these commands in the SMAPI console to interact with the system:
 ## 📈 Monitoring Dashboard
 
 The API includes a real-time monitoring dashboard to observe NPC states and conversations. Access it at `http://localhost:8000/monitoring/`.
+
+Debug wctm Clint

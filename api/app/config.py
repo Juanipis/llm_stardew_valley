@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # LLM Provider settings
-    LLM_PROVIDER: str = "google"  # 'google', 'openai', or 'ollama'
+    LLM_PROVIDER: str # 'google', 'openai', or 'ollama'
 
     # API Keys
     gemini_api_key: Optional[str] = None
@@ -17,11 +17,11 @@ class Settings(BaseSettings):
 
     # Model names (can be overridden by environment variables)
     # These are the default models if not specified in .env
-    embedding_model: str = "text-embedding-004"
-    dialogue_model: str = "gemini-1.5-flash-latest"
-    personality_model: str = "gemini-1.5-flash-latest"
-    emotional_model: str = "gemini-1.5-flash-latest"
-    memory_consolidation_model: str = "gemini-1.5-flash-latest"
+    dialogue_model: str 
+    memory_consolidation_model: str 
+    
+    # Embedding model for local vector search
+    embedding_model: str = "all-mpnet-base-v2"
 
     # Configuraciones adicionales
     max_relevant_memories: int = 3

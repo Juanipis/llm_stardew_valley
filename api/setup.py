@@ -56,7 +56,6 @@ GEMINI_API_KEY=your_gemini_api_key_here
 DATABASE_URL=postgresql://username:password@localhost:5432/stardew_echoes
 
 # Configuración opcional
-EMBEDDING_MODEL=text-embedding-004
 MAX_RELEVANT_MEMORIES=3
 CONVERSATION_TIMEOUT_MINUTES=5
 """

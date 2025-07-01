@@ -1,8 +1,8 @@
 import logging
 from typing import List, Dict, Any, Optional
 
-
 from app.db import db
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ try:
 
     class LocalEmbeddingService:
         def __init__(self):
-            self.model_name = "all-mpnet-base-v2"
+            self.model_name = settings.embedding_model
             self._model = None
             self._device = "cuda" if torch.cuda.is_available() else "cpu"
             logger.info(
@@ -94,7 +94,7 @@ class VectorService:
         recency_weight: float = 0.3,
         emotional_weight: float = 0.4,
         importance_weight: float = 0.3,
-        max_memories: int = 3,
+        max_memories: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Enhanced memory search that mimics human memory recall.
@@ -106,6 +106,9 @@ class VectorService:
         - Access frequency
         - Memory type relevance
         """
+        if max_memories is None:
+            max_memories = settings.max_relevant_memories
+            
         logger.debug(
             f"Searching memories for player {player_id} and NPC {npc_id} with query: '{query_text}'"
         )
@@ -317,9 +320,12 @@ class VectorService:
         return min(10.0, importance)
 
     async def _fallback_text_search(
-        self, player_id: str, npc_id: str, query_text: str, max_memories: int
+        self, player_id: str, npc_id: str, query_text: str, max_memories: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Fallback to simple recent dialogue search if vector search fails."""
+        if max_memories is None:
+            max_memories = settings.max_relevant_memories
+            
         logger.debug("Using fallback text search for memories")
 
         try:
