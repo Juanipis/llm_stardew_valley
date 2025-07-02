@@ -38,25 +38,113 @@ namespace StardewEchoes.Handlers
       this.gameContextHandler = gameContextHandler;
     }
 
-    public async void AbrirDialogoConOpciones(NPC npc, string? playerResponse = null)
+    // Main method that accepts GiftInfo directly (for GiftHandler)
+    public async void AbrirDialogoConOpciones(NPC npc, string? playerResponse = null, GiftInfo? giftInfo = null)
     {
       try
       {
-        var dialogueResponse = await GetDialogueFromAPI(npc, playerResponse);
+        var dialogueResponse = await GetDialogueFromAPI(npc, playerResponse, giftInfo);
 
-        if (playerResponse != null && dialogueResponse.friendship_change != 0)
+        // Handle gift counter updates for successful gift processing (regardless of friendship change)
+        if (giftInfo != null)
+        {
+          UpdateGiftCounters(npc);
+          Monitor.Log($"🎁 Gift successfully processed: {giftInfo.item_name} given to {npc.Name}", LogLevel.Info);
+        }
+
+        // Apply friendship changes from both gifts and player responses
+        if (dialogueResponse.friendship_change != 0)
         {
           int oldPoints = gameContextHandler.GetFriendshipPoints(npc.Name);
+          int oldHearts = gameContextHandler.GetFriendshipHearts(npc.Name);
+          
           Game1.player.changeFriendship(dialogueResponse.friendship_change, npc);
+          
           int newPoints = gameContextHandler.GetFriendshipPoints(npc.Name);
+          int newHearts = gameContextHandler.GetFriendshipHearts(npc.Name);
 
+          string changeType;
+          string reason;
+          
           if (dialogueResponse.friendship_change > 0)
           {
-            Monitor.Log($"{npc.Name}'s friendship increased by {dialogueResponse.friendship_change} points. (From {oldPoints} to {newPoints})", LogLevel.Info);
+            changeType = "INCREASED";
+            if (giftInfo != null)
+            {
+              reason = $"{npc.Name} loved the {giftInfo.item_name} gift!";
+            }
+            else if (playerResponse != null)
+            {
+              reason = $"{npc.Name} liked your response: \"{playerResponse}\"";
+            }
+            else
+            {
+              reason = $"{npc.Name} appreciated the interaction";
+            }
           }
           else
           {
-            Monitor.Log($"{npc.Name}'s friendship decreased by {-dialogueResponse.friendship_change} points. (From {oldPoints} to {newPoints})", LogLevel.Info);
+            changeType = "DECREASED";
+            if (giftInfo != null)
+            {
+              reason = $"{npc.Name} didn't like the {giftInfo.item_name} gift...";
+            }
+            else if (playerResponse != null)
+            {
+              reason = $"{npc.Name} didn't appreciate your response: \"{playerResponse}\"";
+            }
+            else
+            {
+              reason = $"{npc.Name} was displeased with the interaction";
+            }
+          }
+
+          Monitor.Log($"=== FRIENDSHIP CHANGE ===", LogLevel.Info);
+          Monitor.Log($"NPC: {npc.Name}", LogLevel.Info);
+          if (giftInfo != null)
+          {
+            Monitor.Log($"Gift Given: {giftInfo.item_name} (Quality: {giftInfo.item_quality}, Preference: {giftInfo.gift_preference})", LogLevel.Info);
+          }
+          if (playerResponse != null)
+          {
+            Monitor.Log($"Player Response: \"{playerResponse}\"", LogLevel.Info);
+          }
+          Monitor.Log($"Friendship {changeType} by {Math.Abs(dialogueResponse.friendship_change)} points", LogLevel.Info);
+          Monitor.Log($"Points: {oldPoints} → {newPoints} (Change: {dialogueResponse.friendship_change:+0;-0;0})", LogLevel.Info);
+          Monitor.Log($"Hearts: {oldHearts} → {newHearts}", LogLevel.Info);
+          Monitor.Log($"Reason: {reason}", LogLevel.Info);
+          Monitor.Log($"========================", LogLevel.Info);
+          
+          // Show appropriate in-game messages
+          if (newHearts > oldHearts)
+          {
+            Game1.drawObjectDialogue($"❤️ Your friendship with {npc.Name} increased to {newHearts} hearts!");
+          }
+          else if (newHearts < oldHearts)
+          {
+            Game1.drawObjectDialogue($"💔 Your friendship with {npc.Name} decreased to {newHearts} hearts...");
+          }
+          else if (dialogueResponse.friendship_change > 0)
+          {
+            if (giftInfo != null)
+            {
+              Game1.drawObjectDialogue($"😊 {npc.Name} liked the gift! (+{dialogueResponse.friendship_change} friendship)");
+            }
+            else
+            {
+              Game1.drawObjectDialogue($"😊 {npc.Name} liked that response! (+{dialogueResponse.friendship_change} friendship)");
+            }
+          }
+          else if (dialogueResponse.friendship_change < 0)
+          {
+            if (giftInfo != null)
+            {
+              Game1.drawObjectDialogue($"😞 {npc.Name} didn't like the gift... ({dialogueResponse.friendship_change} friendship)");
+            }
+            else
+            {
+              Game1.drawObjectDialogue($"😞 {npc.Name} didn't like that response... ({dialogueResponse.friendship_change} friendship)");
+            }
           }
         }
 
@@ -95,6 +183,13 @@ namespace StardewEchoes.Handlers
             }
         );
       }
+    }
+
+    // Overload that accepts Item for backward compatibility
+    public void AbrirDialogoConOpciones(NPC npc, string? playerResponse, Item giftItem)
+    {
+      var giftInfo = CreateGiftInfo(npc.Name, giftItem);
+      AbrirDialogoConOpciones(npc, playerResponse, giftInfo);
     }
 
     public void OnMenuChanged(object? sender, MenuChangedEventArgs e)
@@ -153,13 +248,51 @@ namespace StardewEchoes.Handlers
             else if (key == "salir")
             {
               ClearConversationHistory(npc.Name);
+              
+              // Notify the API that the conversation has ended
+              Helper.Events.GameLoop.UpdateTicked += EndConversationWithAPI;
+
+              void EndConversationWithAPI(object? s, UpdateTickedEventArgs e)
+              {
+                Helper.Events.GameLoop.UpdateTicked -= EndConversationWithAPI;
+                _ = Task.Run(async () =>
+                {
+                  try
+                  {
+                    var endRequest = new
+                    {
+                      player_name = Game1.player.Name,
+                      npc_name = npc.Name
+                    };
+
+                    string jsonContent = JsonSerializer.Serialize(endRequest);
+                    var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                    var response = await httpClient.PostAsync("http://127.0.0.1:8000/end_conversation", content);
+                    
+                    if (response.IsSuccessStatusCode)
+                    {
+                      Monitor.Log($"Successfully ended conversation with {npc.Name} - background analysis will be performed by the API.", LogLevel.Debug);
+                    }
+                    else
+                    {
+                      Monitor.Log($"Warning: Failed to notify API about conversation end with {npc.Name}: {response.StatusCode}", LogLevel.Warn);
+                    }
+                  }
+                  catch (Exception ex)
+                  {
+                    Monitor.Log($"Error ending conversation with API: {ex.Message}", LogLevel.Error);
+                  }
+                });
+              }
+              
               Monitor.Log($"Conversación con {npc.Name} terminada. Historial limpiado.", LogLevel.Debug);
             }
           }
       );
     }
 
-    private async Task<DialogueResponse> GetDialogueFromAPI(NPC npc, string? playerResponse = null)
+    private async Task<DialogueResponse> GetDialogueFromAPI(NPC npc, string? playerResponse = null, GiftInfo? giftInfo = null)
     {
       var history = GetConversationHistory(npc.Name);
       var request = new DialogueRequest
@@ -177,7 +310,8 @@ namespace StardewEchoes.Handlers
         player_location = Game1.currentLocation?.Name ?? "Unknown",
         language = gameContextHandler.GetGameLanguage(),
         conversation_history = history,
-        player_response = playerResponse
+        player_response = playerResponse,
+        gift_given = giftInfo
       };
 
       string jsonContent = JsonSerializer.Serialize(request);
@@ -251,6 +385,65 @@ namespace StardewEchoes.Handlers
       {
         conversationHistories[npcName].Clear();
         conversationHistories.Remove(npcName);
+      }
+    }
+
+    private GiftInfo CreateGiftInfo(string npcName, Item item)
+    {
+      // Get the NPC for birthday checking
+      var npc = Game1.getCharacterFromName(npcName);
+      bool isBirthday = false;
+      
+      if (npc != null)
+      {
+        // Check if it's the NPC's birthday
+        try
+        {
+          isBirthday = npc.isBirthday();
+        }
+        catch (Exception ex)
+        {
+          Monitor.Log($"Error checking birthday for {npcName}: {ex.Message}", LogLevel.Warn);
+        }
+      }
+
+      return new GiftInfo
+      {
+        item_name = item.Name,
+        item_category = item.getCategoryName(),
+        item_quality = item.Quality,
+        gift_preference = "unknown", // Let AI decide (consistent with GiftHandler)
+        is_birthday = isBirthday
+      };
+    }
+
+    private void UpdateGiftCounters(NPC npc)
+    {
+      try
+      {
+        // Update friendship data using the correct Stardew Valley API
+        if (Game1.player?.friendshipData != null)
+        {
+          var friendship = Game1.player.friendshipData.GetValueOrDefault(npc.Name);
+          if (friendship == null)
+          {
+            friendship = new Friendship();
+            Game1.player.friendshipData[npc.Name] = friendship;
+          }
+
+          friendship.GiftsToday++;
+          friendship.GiftsThisWeek++;
+          
+          Monitor.Log($"📊 Updated gift counters for {npc.Name}: Today={friendship.GiftsToday}, Week={friendship.GiftsThisWeek}", LogLevel.Debug);
+        }
+        else
+        {
+          Monitor.Log($"⚠️ Could not access friendship data for {npc.Name}", LogLevel.Warn);
+        }
+      }
+      catch (Exception ex)
+      {
+        Monitor.Log($"Error updating gift counters: {ex.Message}", LogLevel.Warn);
       }
     }
   }

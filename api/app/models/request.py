@@ -7,6 +7,14 @@ class ConversationEntry(BaseModel):
     message: str
 
 
+class GiftInfo(BaseModel):
+    item_name: str
+    item_category: str
+    item_quality: int = 0  # 0=normal, 1=silver, 2=gold, 3=iridium
+    gift_preference: str = "neutral"  # loved, liked, neutral, disliked, hated
+    is_birthday: bool = False
+
+
 class DialogueRequest(BaseModel):
     npc_name: str
     npc_location: str
@@ -22,6 +30,12 @@ class DialogueRequest(BaseModel):
     language: str = "en"  # Default to English
     conversation_history: List[ConversationEntry] = []
     player_response: Optional[str] = None  # The player's chosen response
+    gift_given: Optional[GiftInfo] = None  # Gift information if a gift was given
+
+
+class EndConversationRequest(BaseModel):
+    player_name: str
+    npc_name: str
 
 
 class DialogueResponse(BaseModel):

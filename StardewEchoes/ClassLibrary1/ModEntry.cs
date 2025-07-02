@@ -14,6 +14,7 @@ namespace StardewEchoes
         private HttpClient? httpClient;
         private DialogueHandler? dialogueHandler;
         private GameContextHandler? gameContextHandler;
+        private GiftHandler? giftHandler;
         private readonly Dictionary<string, List<ConversationEntry>> conversationHistories = new Dictionary<string, List<ConversationEntry>>();
 
         public override void Entry(IModHelper helper)
@@ -33,7 +34,13 @@ namespace StardewEchoes
                 gameContextHandler
             );
 
-            helper.Events.Input.ButtonPressed += OnButtonPressed;
+            // GiftHandler now handles ALL NPC interactions (with and without gifts)
+            // This prevents double-triggering of conversations that was happening when
+            // both ModEntry.OnButtonPressed and GiftHandler.OnButtonPressed were active
+            giftHandler = new GiftHandler(this.Monitor, this.Helper, dialogueHandler);
+
+            // Only keep MenuChanged event for dialogue flow management
+            // NOTE: ButtonPressed event removed to avoid conflicts with GiftHandler
             helper.Events.Display.MenuChanged += OnMenuChanged;
         }
 
@@ -44,26 +51,6 @@ namespace StardewEchoes
                 httpClient?.Dispose();
             }
             base.Dispose(disposing);
-        }
-
-        private void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
-        {
-            if (!Context.IsWorldReady)
-                return;
-
-            if (e.Button.IsActionButton())
-            {
-                var tile = e.Cursor.GrabTile;
-                var npc = Game1.currentLocation.isCharacterAtTile(tile);
-
-                if (npc != null && npc.IsVillager)
-                {
-                    this.Helper.Input.Suppress(e.Button);
-                    Game1.player.Halt();
-                    Game1.player.faceGeneralDirection(npc.getStandingPosition());
-                    dialogueHandler?.AbrirDialogoConOpciones(npc);
-                }
-            }
         }
 
         private void OnMenuChanged(object? sender, MenuChangedEventArgs e)

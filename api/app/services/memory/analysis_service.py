@@ -59,11 +59,11 @@ class AnalysisService:
 
             # 4. Parse and process the response
             analysis_results = json.loads(response_text.strip())
-            logger.debug(
-                f"Unified analysis results for {conversation_id}: {analysis_results}"
-            )
+            logger.info(f"🔍 ANALYSIS COMPLETE for conversation {conversation_id}")
+            logger.info(f"🔍 Analysis results keys: {list(analysis_results.keys())}")
 
             # 5. Process the results and update the database
+            logger.info("🔄 PROCESSING ANALYSIS RESULTS...")
             await self._process_analysis_results(analysis_data, analysis_results)
 
             logger.info(
@@ -247,7 +247,7 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
         # 2. Process emotional state update
         if "emotional_state_update" in analysis_results:
             emo_update = analysis_results["emotional_state_update"]
-            await self._update_emotional_state_in_db(npc_id, emo_update)
+            await self._update_emotional_state_in_db(npc_id, player_id, emo_update)
 
         # 3. Process personality profile update
         if "personality_profile_update" in analysis_results:
@@ -296,12 +296,17 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
                 logger.warning("No personality data to update.")
                 return
 
+            logger.info(
+                f"🧠 UPDATING PERSONALITY PROFILE: Player {player_id} -> NPC {npc_id}"
+            )
+            logger.info(f"🧠 Changes: {db_update_data}")
+
             await db.playerpersonalityprofile.update(
                 where={"playerId_npcId": {"playerId": player_id, "npcId": npc_id}},
                 data=db_update_data,
             )
             logger.info(
-                f"Updated personality profile for player {player_id} with NPC {npc_id}"
+                f"✅ Successfully updated personality profile for player {player_id} with NPC {npc_id}"
             )
 
             # Send real-time notification for personality update
@@ -327,7 +332,7 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
             logger.error(f"Error updating personality profile in DB: {e}")
 
     async def _update_emotional_state_in_db(
-        self, npc_id: str, update_data: Dict[str, Any]
+        self, npc_id: str, player_id: str, update_data: Dict[str, Any]
     ):
         """Updates the NPC's emotional state in the database."""
         try:
@@ -336,7 +341,9 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
             if REALTIME_AVAILABLE:
                 try:
                     old_emotional_state = (
-                        await emotional_state_service.get_emotional_state(npc_id)
+                        await emotional_state_service.get_emotional_state(
+                            npc_id, player_id
+                        )
                     )
                 except Exception as e:
                     logger.error(
@@ -356,11 +363,12 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
                 return
 
             await db.emotionalstate.upsert(
-                where={"npcId": npc_id},
+                where={"npcId_playerId": {"npcId": npc_id, "playerId": player_id}},
                 data={
                     "update": db_update_data,
                     "create": {
                         "npcId": npc_id,
+                        "playerId": player_id,
                         "currentMood": update_data.get("new_mood", "NEUTRAL"),
                         "moodIntensity": float(
                             update_data.get("new_mood_intensity", 5.0)
@@ -371,7 +379,9 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
                     },
                 },
             )
-            logger.info(f"Updated emotional state for NPC {npc_id}")
+            logger.info(
+                f"Updated emotional state for NPC {npc_id} towards player {player_id}"
+            )
 
             # Send real-time notification for emotional state change
             if REALTIME_AVAILABLE and old_emotional_state:
@@ -382,7 +392,9 @@ Based on EVERYTHING above, perform a comprehensive analysis and provide the outp
                     if npc:
                         # Get new emotional state
                         new_emotional_state = (
-                            await emotional_state_service.get_emotional_state(npc_id)
+                            await emotional_state_service.get_emotional_state(
+                                npc_id, player_id
+                            )
                         )
 
                         await realtime_monitor.notify_emotional_state_change(
