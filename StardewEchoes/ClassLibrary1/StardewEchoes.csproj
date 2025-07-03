@@ -4,7 +4,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <GamePath>C:\Users\juani\Juegos\Stardew Valley</GamePath>
+    <GamePath>D:\Cracked\Stardew Valley</GamePath>
   </PropertyGroup>
 
   <ItemGroup>

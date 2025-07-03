@@ -203,7 +203,40 @@
                 >
                   <i class="fas fa-smile me-2"></i>Emotional States
                 </a>
+                <a
+                  href="#admin"
+                  class="list-group-item list-group-item-action"
+                  data-tab="admin"
+                >
+                  <i class="fas fa-cog me-2"></i>Admin
+                </a>
               </div>
+            </div>
+
+            <!-- Admin Controls -->
+            <div class="mb-4">
+              <h6 class="text-muted mb-2">Quick Actions</h6>
+              <button
+                class="btn btn-warning btn-sm w-100 mb-2"
+                onclick="showResetPersonalityModal()"
+                title="Reset NPC personality profiles"
+              >
+                <i class="fas fa-undo me-1"></i>Reset Personalities
+              </button>
+              <button
+                class="btn btn-outline-primary btn-sm w-100 mb-2"
+                onclick="refreshAllData()"
+                title="Refresh all dashboard data"
+              >
+                <i class="fas fa-sync-alt me-1"></i>Refresh All
+              </button>
+              <button
+                class="btn btn-outline-info btn-sm w-100"
+                onclick="exportData()"
+                title="Export monitoring data"
+              >
+                <i class="fas fa-download me-1"></i>Export Data
+              </button>
             </div>
           </div>
         </div>
@@ -416,6 +449,101 @@
                 <!-- Emotional states will be populated here -->
               </div>
             </div>
+
+            <!-- Admin Tab -->
+            <div id="tab-admin" class="tab-content" style="display: none">
+              <div
+                class="d-flex justify-content-between align-items-center mb-4"
+              >
+                <h2 class="mb-0">
+                  <i class="fas fa-cog me-2 text-primary"></i>
+                  Admin Panel
+                </h2>
+              </div>
+
+              <!-- System Stats -->
+              <div class="row mb-4">
+                <div class="col-md-8">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-info text-white">
+                      <h5 class="mb-0">
+                        <i class="fas fa-database me-2"></i>
+                        System Statistics
+                      </h5>
+                    </div>
+                    <div class="card-body" id="system-stats">
+                      <!-- System stats will be loaded here -->
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-warning text-dark">
+                      <h5 class="mb-0">
+                        <i class="fas fa-tools me-2"></i>
+                        Admin Actions
+                      </h5>
+                    </div>
+                    <div class="card-body">
+                      <button
+                        class="btn btn-warning w-100 mb-3"
+                        onclick="showResetPersonalityModal()"
+                      >
+                        <i class="fas fa-undo me-2"></i>
+                        Reset Personalities
+                      </button>
+                      <button
+                        class="btn btn-danger w-100 mb-3"
+                        onclick="showClearDataModal()"
+                      >
+                        <i class="fas fa-trash me-2"></i>
+                        Clear All Data
+                      </button>
+                      <button
+                        class="btn btn-primary w-100 mb-3"
+                        onclick="downloadLogs()"
+                      >
+                        <i class="fas fa-file-download me-2"></i>
+                        Download Logs
+                      </button>
+                      <button
+                        class="btn btn-outline-secondary w-100"
+                        onclick="testWebSocket()"
+                      >
+                        <i class="fas fa-wifi me-2"></i>
+                        Test WebSocket
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Real-time Activity Log -->
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-dark text-white">
+                  <h5 class="mb-0">
+                    <i class="fas fa-terminal me-2"></i>
+                    Real-time Activity Log
+                  </h5>
+                </div>
+                <div class="card-body">
+                  <div
+                    id="activity-log"
+                    style="
+                      height: 300px;
+                      overflow-y: auto;
+                      background-color: #1e1e1e;
+                      color: #00ff00;
+                      font-family: 'Courier New', monospace;
+                      padding: 10px;
+                      border-radius: 4px;
+                    "
+                  >
+                    <!-- Activity log will be populated here -->
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -426,6 +554,159 @@
       class="toast-container position-fixed bottom-0 end-0 p-3"
       id="toast-container"
     ></div>
+
+    <!-- Reset Personality Modal -->
+    <div class="modal fade" id="resetPersonalityModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="fas fa-undo me-2"></i>Reset NPC Personalities
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Reset Type</label>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="resetType"
+                  id="resetAll"
+                  value="all"
+                />
+                <label class="form-check-label" for="resetAll">
+                  <strong>Reset ALL personalities</strong> (⚠️ This will delete
+                  all NPC personality data)
+                </label>
+              </div>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="resetType"
+                  id="resetSpecific"
+                  value="specific"
+                />
+                <label class="form-check-label" for="resetSpecific">
+                  Reset specific NPC or relationship
+                </label>
+              </div>
+            </div>
+
+            <div id="specificResetOptions" style="display: none">
+              <div class="row">
+                <div class="col-md-6">
+                  <label for="resetNpcSelect" class="form-label"
+                    >NPC (required)</label
+                  >
+                  <select class="form-select" id="resetNpcSelect">
+                    <option value="">Choose NPC...</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="resetPlayerSelect" class="form-label"
+                    >Player (optional)</label
+                  >
+                  <select class="form-select" id="resetPlayerSelect">
+                    <option value="">All relationships</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-warning mt-3">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <strong>Warning:</strong> This action cannot be undone. All
+              personality data will be permanently deleted.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-warning"
+              onclick="executeResetPersonality()"
+            >
+              <i class="fas fa-undo me-2"></i>Reset Personalities
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clear Data Modal -->
+    <div class="modal fade" id="clearDataModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title">
+              <i class="fas fa-trash me-2"></i>Clear All Data
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-danger">
+              <h6>
+                <i class="fas fa-exclamation-triangle me-2"></i>DANGER ZONE
+              </h6>
+              This will permanently delete ALL monitoring data including:
+              <ul class="mt-2 mb-0">
+                <li>All conversations and dialogue entries</li>
+                <li>All personality profiles</li>
+                <li>All emotional states</li>
+                <li>All player and NPC records</li>
+              </ul>
+            </div>
+
+            <div class="mb-3">
+              <label for="confirmText" class="form-label">
+                Type <code>DELETE ALL DATA</code> to confirm:
+              </label>
+              <input
+                type="text"
+                class="form-control"
+                id="confirmText"
+                placeholder="Type confirmation text here"
+              />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              onclick="executeClearData()"
+              id="clearDataBtn"
+              disabled
+            >
+              <i class="fas fa-trash me-2"></i>Delete All Data
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -502,7 +783,7 @@
         }
       });
 
-      // WebSocket initialization with improved error handling
+      // WebSocket initialization with improved error handling and keep-alive
       function initWebSocket() {
         try {
           const protocol =
@@ -521,14 +802,75 @@
               "Real-time updates are now active",
               "success"
             );
+
+            // Start keep-alive mechanism
+            startWebSocketKeepAlive();
+
+            // Log activity if function is available
+            if (typeof logActivity === "function") {
+              logActivity("WebSocket connected and keep-alive started");
+            }
           };
 
           websocket.onmessage = function (event) {
             try {
-              const data = JSON.parse(event.data);
+              // Handle control messages (ping/pong) before attempting JSON parsing
+              const rawMessage = event.data;
+
+              // Filter out control messages that aren't JSON
+              if (rawMessage === "pong") {
+                // Update last pong received timestamp
+                updateLastPongReceived();
+                console.debug("Received keep-alive pong");
+                if (typeof logActivity === "function") {
+                  logActivity("Keep-alive pong received");
+                }
+                return;
+              }
+
+              if (rawMessage === "ping") {
+                // Server sent us a ping, respond with pong
+                if (websocket && websocket.readyState === 1) {
+                  websocket.send("pong");
+                  console.debug("Responded to server ping with pong");
+                }
+                return;
+              }
+
+              // Handle other control messages
+              if (rawMessage === "ack") {
+                console.debug("Received acknowledgment from server");
+                if (typeof logActivity === "function") {
+                  logActivity("Server acknowledgment received");
+                }
+                return;
+              }
+
+              // Handle heartbeat or other simple string responses
+              if (
+                typeof rawMessage === "string" &&
+                rawMessage.length < 10 &&
+                !rawMessage.startsWith("{") &&
+                !rawMessage.startsWith("[")
+              ) {
+                console.debug("Received non-JSON control message:", rawMessage);
+                if (typeof logActivity === "function") {
+                  logActivity(`Control message: ${rawMessage}`);
+                }
+                return;
+              }
+
+              // Attempt to parse as JSON
+              const data = JSON.parse(rawMessage);
               handleRealtimeUpdate(data);
             } catch (error) {
               console.error("Error parsing WebSocket message:", error);
+              console.error("Raw message was:", event.data);
+
+              // Log activity for debugging
+              if (typeof logActivity === "function") {
+                logActivity(`WebSocket parse error: ${error.message}`);
+              }
             }
           };
 
@@ -541,6 +883,12 @@
             );
             updateConnectionStatus("offline");
 
+            // Clear keep-alive interval
+            if (keepAliveInterval) {
+              clearInterval(keepAliveInterval);
+              keepAliveInterval = null;
+            }
+
             // Only attempt to reconnect if it wasn't a manual close
             if (event.code !== 1000) {
               console.log("Attempting to reconnect in 5 seconds...");
@@ -551,6 +899,13 @@
           websocket.onerror = function (error) {
             console.error("WebSocket error:", error);
             updateConnectionStatus("offline");
+
+            // Clear keep-alive interval on error
+            if (keepAliveInterval) {
+              clearInterval(keepAliveInterval);
+              keepAliveInterval = null;
+            }
+
             showNotification(
               "Connection Error",
               "WebSocket connection failed",
@@ -571,6 +926,11 @@
       // Handle real-time updates
       function handleRealtimeUpdate(data) {
         console.log("Real-time update:", data);
+
+        // Log activity if function is available
+        if (typeof logActivity === "function") {
+          logActivity(`Real-time event: ${data.type}`);
+        }
 
         switch (data.type) {
           case "connection_confirmed":
@@ -612,6 +972,19 @@
               "info"
             );
             break;
+        }
+
+        // Update charts if needed for conversation events
+        if (
+          data.type === "conversation_ended" ||
+          data.type === "new_conversation"
+        ) {
+          // Refresh chart data after a delay
+          setTimeout(() => {
+            if (typeof loadSystemStats === "function") {
+              loadSystemStats();
+            }
+          }, 1000);
         }
       }
 
@@ -711,6 +1084,9 @@
             break;
           case "emotional-states":
             loadEmotionalStates();
+            break;
+          case "admin":
+            loadSystemStats();
             break;
         }
       }
@@ -1683,19 +2059,26 @@
           const modalHTML = createConversationModalHTML(data);
           document.body.insertAdjacentHTML("beforeend", modalHTML);
 
-          const modal = new bootstrap.Modal(
-            document.getElementById("conversationModal")
-          );
-          modal.show();
-          currentOpenConversationId = conversationId;
+          const modalElement = document.getElementById("conversationModal");
+          const modal = new bootstrap.Modal(modalElement, {
+            focus: true, // Ensure proper focus management
+            backdrop: true,
+            keyboard: true,
+          });
 
-          // Clean up modal when hidden
-          document
-            .getElementById("conversationModal")
-            .addEventListener("hidden.bs.modal", function () {
+          // Set up proper event handlers before showing
+          modalElement.addEventListener(
+            "hidden.bs.modal",
+            function () {
               this.remove();
               currentOpenConversationId = null;
-            });
+            },
+            { once: true }
+          ); // Use once to prevent multiple listeners
+
+          // Show modal and set current conversation
+          modal.show();
+          currentOpenConversationId = conversationId;
         } catch (error) {
           console.error("Error loading conversation details:", error);
           showNotification(
@@ -1716,15 +2099,15 @@
         const endTime = conv.end_time ? new Date(conv.end_time) : null;
 
         return `
-          <div class="modal fade" id="conversationModal" tabindex="-1">
-            <div class="modal-dialog modal-xl">
+          <div class="modal fade" id="conversationModal" tabindex="-1" role="dialog" aria-labelledby="conversationModalTitle">
+            <div class="modal-dialog modal-xl" role="document">
               <div class="modal-content">
                 <div class="modal-header">
-                  <h5 class="modal-title">
+                  <h5 class="modal-title" id="conversationModalTitle">
                     <i class="fas fa-comments me-2"></i>
                     Conversation: ${conv.player_name} & ${conv.npc_name}
                   </h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                   <div class="row mb-4">
@@ -1871,6 +2254,478 @@
       function loadRelationshipHistory(playerName, npcName) {
         loadConversationHistory(playerName, npcName);
       }
+
+      // =============== NEW ADMIN FUNCTIONS ===============
+
+      // Load system statistics for admin panel
+      async function loadSystemStats() {
+        try {
+          const response = await fetch("/monitoring/api/system/stats");
+
+          // Check if response is ok
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+
+          // Provide fallback values following best practices for undefined properties
+          const dbStats = data?.database_stats || {};
+          const fallbackStats = {
+            total_conversations: dbStats.total_conversations ?? 0,
+            total_dialogue_entries: dbStats.total_dialogue_entries ?? 0,
+            total_players: dbStats.total_players ?? 0,
+            total_npcs: dbStats.total_npcs ?? 0,
+            total_personalities: dbStats.total_personalities ?? 0,
+            total_emotional_states: dbStats.total_emotional_states ?? 0,
+            conversations_today: dbStats.conversations_today ?? 0,
+            active_conversations: dbStats.active_conversations ?? 0,
+          };
+
+          // Update database stats with safe property access
+          const statsContainer = document.getElementById("system-stats");
+          if (statsContainer) {
+            statsContainer.innerHTML = `
+              <div class="row">
+                <div class="col-md-6">
+                  <h6 class="text-muted mb-3">Database Statistics</h6>
+                  <ul class="list-unstyled">
+                    <li><strong>Total Conversations:</strong> ${
+                      fallbackStats.total_conversations
+                    }</li>
+                    <li><strong>Total Messages:</strong> ${
+                      fallbackStats.total_dialogue_entries
+                    }</li>
+                    <li><strong>Total Players:</strong> ${
+                      fallbackStats.total_players
+                    }</li>
+                    <li><strong>Total NPCs:</strong> ${
+                      fallbackStats.total_npcs
+                    }</li>
+                    <li><strong>Personality Profiles:</strong> ${
+                      fallbackStats.total_personalities
+                    }</li>
+                    <li><strong>Emotional States:</strong> ${
+                      fallbackStats.total_emotional_states
+                    }</li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <h6 class="text-muted mb-3">Activity Statistics</h6>
+                  <ul class="list-unstyled">
+                    <li><strong>Conversations Today:</strong> ${
+                      fallbackStats.conversations_today
+                    }</li>
+                    <li><strong>Active Conversations:</strong> ${
+                      fallbackStats.active_conversations
+                    }</li>
+                    <li><strong>Database Size:</strong> <span class="badge bg-info">Healthy</span></li>
+                    <li><strong>WebSocket Status:</strong> <span class="badge ${
+                      websocket && websocket.readyState === 1
+                        ? "bg-success"
+                        : "bg-danger"
+                    }">${
+              websocket && websocket.readyState === 1
+                ? "Connected"
+                : "Disconnected"
+            }</span></li>
+                  </ul>
+                </div>
+              </div>
+            `;
+          }
+
+          // Update charts with real data if available
+          if (data?.chart_data) {
+            updateChartsWithRealData(data.chart_data);
+          }
+        } catch (error) {
+          console.error("Error loading system stats:", error);
+
+          // Show specific error message
+          const errorMessage = error.message.includes("HTTP")
+            ? `Server error: ${error.message}`
+            : "Failed to load system statistics";
+
+          showNotification("Error", errorMessage, "danger");
+
+          // Show fallback UI with error state
+          const statsContainer = document.getElementById("system-stats");
+          if (statsContainer) {
+            statsContainer.innerHTML = `
+              <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Error Loading Statistics</h6>
+                <p class="mb-0">Unable to load system statistics. Please check server logs or try refreshing.</p>
+                <hr>
+                <small class="text-muted">Error: ${error.message}</small>
+              </div>
+              <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadSystemStats()">
+                <i class="fas fa-retry me-1"></i>Retry
+              </button>
+            `;
+          }
+        }
+      }
+
+      // Update charts with real data
+      function updateChartsWithRealData(chartData) {
+        try {
+          // Safely update conversations chart
+          if (
+            conversationsChart &&
+            chartData?.conversations_24h &&
+            Array.isArray(chartData.conversations_24h)
+          ) {
+            const validData = chartData.conversations_24h.filter(
+              (item) =>
+                item &&
+                typeof item === "object" &&
+                item.hour !== undefined &&
+                item.conversations !== undefined
+            );
+
+            if (validData.length > 0) {
+              conversationsChart.data.labels = validData.map(
+                (item) => item.hour || "Unknown"
+              );
+              conversationsChart.data.datasets[0].data = validData.map(
+                (item) => item.conversations || 0
+              );
+              conversationsChart.update();
+            } else {
+              console.warn("No valid conversation data available for chart");
+            }
+          }
+
+          // Safely update NPC popularity chart
+          if (
+            npcPopularityChart &&
+            chartData?.npc_popularity &&
+            Array.isArray(chartData.npc_popularity)
+          ) {
+            const validData = chartData.npc_popularity.filter(
+              (item) =>
+                item &&
+                typeof item === "object" &&
+                item.name !== undefined &&
+                item.conversation_count !== undefined
+            );
+
+            if (validData.length > 0) {
+              npcPopularityChart.data.labels = validData.map(
+                (item) => item.name || "Unknown"
+              );
+              npcPopularityChart.data.datasets[0].data = validData.map(
+                (item) => item.conversation_count || 0
+              );
+              npcPopularityChart.update();
+            } else {
+              console.warn("No valid NPC popularity data available for chart");
+            }
+          }
+        } catch (error) {
+          console.error("Error updating charts:", error);
+          showNotification(
+            "Warning",
+            "Charts could not be updated with new data",
+            "warning"
+          );
+        }
+      }
+
+      // Show reset personality modal
+      function showResetPersonalityModal() {
+        // Load NPCs and Players for the select options
+        loadNPCsAndPlayersForReset();
+
+        // Setup radio button event listeners
+        document
+          .querySelectorAll('input[name="resetType"]')
+          .forEach((radio) => {
+            radio.addEventListener("change", function () {
+              const specificOptions = document.getElementById(
+                "specificResetOptions"
+              );
+              if (this.value === "specific") {
+                specificOptions.style.display = "block";
+              } else {
+                specificOptions.style.display = "none";
+              }
+            });
+          });
+
+        // Show modal
+        new bootstrap.Modal(
+          document.getElementById("resetPersonalityModal")
+        ).show();
+      }
+
+      // Load NPCs and Players for reset modal
+      async function loadNPCsAndPlayersForReset() {
+        try {
+          // Load NPCs
+          const npcsResponse = await fetch("/monitoring/api/npcs");
+          const npcsData = await npcsResponse.json();
+
+          const npcSelect = document.getElementById("resetNpcSelect");
+          npcSelect.innerHTML = '<option value="">Choose NPC...</option>';
+
+          npcsData.npcs.forEach((npc) => {
+            const option = document.createElement("option");
+            option.value = npc.name;
+            option.textContent = npc.name;
+            npcSelect.appendChild(option);
+          });
+
+          // Load Players
+          const playersResponse = await fetch("/monitoring/api/players");
+          const playersData = await playersResponse.json();
+
+          const playerSelect = document.getElementById("resetPlayerSelect");
+          playerSelect.innerHTML =
+            '<option value="">All relationships</option>';
+
+          playersData.players.forEach((player) => {
+            const option = document.createElement("option");
+            option.value = player.name;
+            option.textContent = player.name;
+            playerSelect.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Error loading NPCs and Players:", error);
+        }
+      }
+
+      // Execute personality reset
+      async function executeResetPersonality() {
+        try {
+          const resetType = document.querySelector(
+            'input[name="resetType"]:checked'
+          );
+          if (!resetType) {
+            showNotification("Error", "Please select a reset type", "warning");
+            return;
+          }
+
+          let url = "/monitoring/api/reset-personality";
+          let params = new URLSearchParams();
+
+          if (resetType.value === "all") {
+            params.append("reset_all", "true");
+          } else {
+            const npcName = document.getElementById("resetNpcSelect").value;
+            const playerName =
+              document.getElementById("resetPlayerSelect").value;
+
+            if (!npcName) {
+              showNotification("Error", "Please select an NPC", "warning");
+              return;
+            }
+
+            params.append("npc_name", npcName);
+            if (playerName) {
+              params.append("player_name", playerName);
+            }
+          }
+
+          const response = await fetch(`${url}?${params.toString()}`, {
+            method: "POST",
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showNotification("Success", data.message, "success");
+            bootstrap.Modal.getInstance(
+              document.getElementById("resetPersonalityModal")
+            ).hide();
+
+            // Refresh relevant data
+            loadOverviewStats();
+            loadEmotionalStates();
+            loadSystemStats();
+          } else {
+            showNotification(
+              "Error",
+              data.detail || "Failed to reset personalities",
+              "danger"
+            );
+          }
+        } catch (error) {
+          console.error("Error resetting personalities:", error);
+          showNotification("Error", "Failed to reset personalities", "danger");
+        }
+      }
+
+      // Show clear data modal
+      function showClearDataModal() {
+        // Setup confirmation text validation
+        const confirmText = document.getElementById("confirmText");
+        const clearBtn = document.getElementById("clearDataBtn");
+
+        confirmText.addEventListener("input", function () {
+          if (this.value === "DELETE ALL DATA") {
+            clearBtn.disabled = false;
+          } else {
+            clearBtn.disabled = true;
+          }
+        });
+
+        new bootstrap.Modal(document.getElementById("clearDataModal")).show();
+      }
+
+      // Execute clear all data
+      async function executeClearData() {
+        try {
+          const response = await fetch(
+            "/monitoring/api/admin/clear-data?confirm=true",
+            {
+              method: "DELETE",
+            }
+          );
+
+          const data = await response.json();
+
+          if (response.ok) {
+            showNotification("Success", data.message, "success");
+            bootstrap.Modal.getInstance(
+              document.getElementById("clearDataModal")
+            ).hide();
+
+            // Reset all displayed data
+            setTimeout(() => {
+              location.reload();
+            }, 2000);
+          } else {
+            showNotification(
+              "Error",
+              data.detail || "Failed to clear data",
+              "danger"
+            );
+          }
+        } catch (error) {
+          console.error("Error clearing data:", error);
+          showNotification("Error", "Failed to clear data", "danger");
+        }
+      }
+
+      // Test WebSocket connection
+      function testWebSocket() {
+        if (websocket && websocket.readyState === 1) {
+          // Send ping message
+          websocket.send("ping");
+          showNotification("WebSocket Test", "Ping sent to server", "info");
+
+          // Log activity
+          logActivity("WebSocket ping test sent");
+        } else {
+          showNotification(
+            "WebSocket Error",
+            "WebSocket is not connected",
+            "warning"
+          );
+          logActivity("WebSocket test failed - not connected");
+        }
+      }
+
+      // Download logs (placeholder)
+      function downloadLogs() {
+        showNotification(
+          "Download",
+          "Log download functionality would be implemented here",
+          "info"
+        );
+        logActivity("Log download requested");
+      }
+
+      // Export data
+      function exportData() {
+        showNotification(
+          "Export",
+          "Data export functionality would be implemented here",
+          "info"
+        );
+        logActivity("Data export requested");
+      }
+
+      // Refresh all data
+      function refreshAllData() {
+        loadOverviewStats();
+        loadActiveConversations();
+        loadRecentConversations();
+        loadEmotionalStates();
+        loadSystemStats();
+        showNotification("Refresh", "All data has been refreshed", "success");
+        logActivity("Manual data refresh performed");
+      }
+
+      // Activity logging for admin panel
+      function logActivity(message) {
+        const activityLog = document.getElementById("activity-log");
+        if (activityLog) {
+          const timestamp = new Date().toLocaleTimeString();
+          const logEntry = document.createElement("div");
+          logEntry.innerHTML = `[${timestamp}] ${message}`;
+
+          // Add to top of log
+          activityLog.insertBefore(logEntry, activityLog.firstChild);
+
+          // Keep only last 50 entries
+          while (activityLog.children.length > 50) {
+            activityLog.removeChild(activityLog.lastChild);
+          }
+        }
+      }
+
+      // Keep-alive mechanism for WebSocket
+      let keepAliveInterval = null;
+      let lastPongReceived = Date.now();
+
+      function startWebSocketKeepAlive() {
+        // Clear existing interval if any
+        if (keepAliveInterval) {
+          clearInterval(keepAliveInterval);
+        }
+
+        keepAliveInterval = setInterval(() => {
+          if (websocket && websocket.readyState === 1) {
+            try {
+              websocket.send("ping");
+
+              // Check if we've received a pong recently (within last 60 seconds)
+              const timeSinceLastPong = Date.now() - lastPongReceived;
+              if (timeSinceLastPong > 60000) {
+                console.warn(
+                  "Haven't received pong response in over 60 seconds, connection may be stale"
+                );
+                if (typeof logActivity === "function") {
+                  logActivity("WebSocket keep-alive warning: No pong response");
+                }
+              }
+            } catch (error) {
+              console.error("Error sending WebSocket ping:", error);
+              if (typeof logActivity === "function") {
+                logActivity(`WebSocket ping error: ${error.message}`);
+              }
+            }
+          } else {
+            console.warn("WebSocket not ready for keep-alive ping");
+          }
+        }, 30000); // Ping every 30 seconds
+      }
+
+      // Update last pong timestamp when we receive pong messages
+      function updateLastPongReceived() {
+        lastPongReceived = Date.now();
+      }
+
+      // Initialize activity log with welcome message
+      document.addEventListener("DOMContentLoaded", function () {
+        setTimeout(() => {
+          logActivity("Dashboard initialized successfully");
+          logActivity("Real-time monitoring active");
+        }, 1000);
+      });
     </script>
   </body>
 </html>

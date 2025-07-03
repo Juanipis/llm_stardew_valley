@@ -619,3 +619,239 @@ async def get_conversation_history(conversation_id: str):
     except Exception as e:
         logger.error(f"Error getting conversation history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/reset-personality")
+async def reset_npc_personality(
+    npc_name: str = None, player_name: str = None, reset_all: bool = False
+):
+    """Reset NPC personality profiles"""
+    try:
+        if reset_all:
+            # Reset all personality profiles
+            deleted_count = await db.playerpersonalityprofile.delete_many({})
+            deleted_emotional = await db.emotionalstate.delete_many({})
+
+            logger.info(
+                f"Reset all personality profiles: {deleted_count} profiles, {deleted_emotional} emotional states"
+            )
+
+            return {
+                "message": "All personality profiles and emotional states have been reset",
+                "reset_personalities": deleted_count,
+                "reset_emotional_states": deleted_emotional,
+            }
+
+        elif npc_name and player_name:
+            # Reset specific NPC-Player relationship
+            player = await db.player.find_unique(where={"name": player_name})
+            npc = await db.npc.find_unique(where={"name": npc_name})
+
+            if not player or not npc:
+                raise HTTPException(status_code=404, detail="Player or NPC not found")
+
+            # Delete personality profile
+            await db.playerpersonalityprofile.delete_many(
+                where={"playerId": player.id, "npcId": npc.id}
+            )
+
+            # Delete emotional state
+            await db.emotionalstate.delete_many(
+                where={"npcId": npc.id, "playerId": player.id}
+            )
+
+            logger.info(f"Reset personality for {npc_name} towards {player_name}")
+
+            return {
+                "message": f"Reset personality of {npc_name} towards {player_name}",
+                "npc_name": npc_name,
+                "player_name": player_name,
+            }
+
+        elif npc_name:
+            # Reset all relationships for specific NPC
+            npc = await db.npc.find_unique(where={"name": npc_name})
+
+            if not npc:
+                raise HTTPException(status_code=404, detail="NPC not found")
+
+            # Delete all personality profiles for this NPC
+            deleted_personalities = await db.playerpersonalityprofile.delete_many(
+                where={"npcId": npc.id}
+            )
+
+            # Delete all emotional states for this NPC
+            deleted_emotional = await db.emotionalstate.delete_many(
+                where={"npcId": npc.id}
+            )
+
+            logger.info(f"Reset all relationships for NPC {npc_name}")
+
+            return {
+                "message": f"Reset all relationships for {npc_name}",
+                "npc_name": npc_name,
+                "reset_personalities": deleted_personalities,
+                "reset_emotional_states": deleted_emotional,
+            }
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Must provide either reset_all=true, npc_name, or both npc_name and player_name",
+            )
+
+    except Exception as e:
+        logger.error(f"Error resetting personality: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/system/stats")
+async def get_system_stats():
+    """Get system statistics for dashboard"""
+    try:
+        # Get database statistics
+        total_conversations = await db.conversation.count()
+        total_dialogue_entries = await db.dialogueentry.count()
+        total_players = await db.player.count()
+        total_npcs = await db.npc.count()
+        total_personalities = await db.playerpersonalityprofile.count()
+        total_emotional_states = await db.emotionalstate.count()
+
+        # Get recent activity (last 24 hours)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        conversations_today = await db.conversation.count(
+            where={"startTime": {"gte": yesterday}}
+        )
+
+        # Get active conversations
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        active_conversations = await db.conversation.count(
+            where={"endTime": None, "startTime": {"gte": cutoff_time}}
+        )
+
+        # Get conversations by hour for chart data
+        last_24h = []
+        for i in range(24):
+            hour_start = datetime.now(timezone.utc) - timedelta(hours=i + 1)
+            hour_end = datetime.now(timezone.utc) - timedelta(hours=i)
+
+            hour_conversations = await db.conversation.count(
+                where={"startTime": {"gte": hour_start, "lt": hour_end}}
+            )
+
+            last_24h.append(
+                {
+                    "hour": hour_start.strftime("%H:00"),
+                    "conversations": hour_conversations,
+                }
+            )
+
+        last_24h.reverse()  # Show chronologically
+
+        # Get NPC popularity data using Prisma aggregations (safer)
+        npc_popularity = []
+        try:
+            # Get all NPCs with their conversation counts
+            npcs_with_conversations = await db.npc.find_many(
+                include={"conversations": True}
+            )
+
+            # Calculate conversation counts and format for frontend
+            npc_counts = []
+            for npc in npcs_with_conversations:
+                conversation_count = len(npc.conversations) if npc.conversations else 0
+                if conversation_count > 0:  # Only include NPCs with conversations
+                    npc_counts.append(
+                        {"name": npc.name, "conversation_count": conversation_count}
+                    )
+
+            # Sort by conversation count (descending) and take top 10
+            npc_popularity = sorted(
+                npc_counts, key=lambda x: x["conversation_count"], reverse=True
+            )[:10]
+
+        except Exception as popularity_error:
+            logger.warning(f"Error getting NPC popularity data: {popularity_error}")
+            # Fallback: just get a list of NPCs with 0 counts
+            try:
+                all_npcs = await db.npc.find_many(take=10)
+                npc_popularity = [
+                    {"name": npc.name, "conversation_count": 0} for npc in all_npcs
+                ]
+            except Exception as fallback_error:
+                logger.error(f"Fallback NPC query failed: {fallback_error}")
+                npc_popularity = []
+
+        return {
+            "database_stats": {
+                "total_conversations": total_conversations,
+                "total_dialogue_entries": total_dialogue_entries,
+                "total_players": total_players,
+                "total_npcs": total_npcs,
+                "total_personalities": total_personalities,
+                "total_emotional_states": total_emotional_states,
+                "conversations_today": conversations_today,
+                "active_conversations": active_conversations,
+            },
+            "chart_data": {
+                "conversations_24h": last_24h,
+                "npc_popularity": npc_popularity,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Critical error getting system stats: {e}")
+        # Return minimal safe response instead of 500 error
+        return {
+            "database_stats": {
+                "total_conversations": 0,
+                "total_dialogue_entries": 0,
+                "total_players": 0,
+                "total_npcs": 0,
+                "total_personalities": 0,
+                "total_emotional_states": 0,
+                "conversations_today": 0,
+                "active_conversations": 0,
+            },
+            "chart_data": {
+                "conversations_24h": [],
+                "npc_popularity": [],
+            },
+            "error": f"Error loading statistics: {str(e)}",
+        }
+
+
+@router.delete("/api/admin/clear-data")
+async def clear_all_data(confirm: bool = False):
+    """Clear all monitoring data (admin only)"""
+    if not confirm:
+        raise HTTPException(
+            status_code=400, detail="Must set confirm=true to clear all data"
+        )
+
+    try:
+        # Delete all data in reverse dependency order
+        deleted_dialogue = await db.dialogueentry.delete_many({})
+        deleted_conversations = await db.conversation.delete_many({})
+        deleted_personalities = await db.playerpersonalityprofile.delete_many({})
+        deleted_emotional = await db.emotionalstate.delete_many({})
+        deleted_players = await db.player.delete_many({})
+        deleted_npcs = await db.npc.delete_many({})
+
+        logger.warning("All monitoring data has been cleared!")
+
+        return {
+            "message": "All monitoring data has been cleared",
+            "deleted": {
+                "dialogue_entries": deleted_dialogue,
+                "conversations": deleted_conversations,
+                "personality_profiles": deleted_personalities,
+                "emotional_states": deleted_emotional,
+                "players": deleted_players,
+                "npcs": deleted_npcs,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Error clearing data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
